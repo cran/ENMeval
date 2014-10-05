@@ -6,7 +6,10 @@ calc.aicc <- function(nparam, occ, predictive.maps){
 	AIC.valid <- nparam < nrow(occ)
 	vals <- extract(predictive.maps, occ)
 	probsum <- cellStats(predictive.maps, sum)
-	LL <- colSums(log(vals/probsum), na.rm=T)
+# The log-likelihood was incorrectly calculated (see next line) in ENMeval v.1.0.0 when working with >1 model at once.
+# 	LL <- colSums(log(vals/probsum), na.rm=T)
+# The corrected calculation (since v.0.1.1) is:
+	LL <- colSums(log(t(t(vals)/probsum)), na.rm=T)
 	AICc <- (2*nparam - 2*LL) + (2*(nparam)*(nparam+1)/(nrow(occ)-nparam-1))
 	AICc[AIC.valid==FALSE] <- NA
 	AICc[is.infinite(AICc)] <- NA

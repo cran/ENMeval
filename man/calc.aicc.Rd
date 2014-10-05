@@ -21,9 +21,7 @@ get.params(model)
 }
 
 \details{ 
-As motivated by Warren and Seifert (2011) and implemented in ENMTools (Warren  \emph{et al.} 2010), this function calculates the small sample size version of Akaike Information Criterion for ENMs (Akaike 1974).  We use AICc (instead of AIC) regardless of sample size based on the recommendation of Burnham and Anderson (1998, 2004).  The number of parameters is determined by counting the number of non-zero parameters in the \code{maxent} lambda file.  See Warren \emph{et al.} (2014) for limitations of this approach, namely that the number of parameters is an estimate of the true degrees of freedom.
-
-For Maxent ENMs, AICc is calculated by standardizing the raw output such that all cells in the study extent sum to 1.  The likelihood of the data for a given model is then calculated by taking the product of the raw output values for all grid cells that contain an occurrence locality (Warren and Seifert 2011).  
+As motivated by Warren and Seifert (2011) and implemented in ENMTools (Warren  \emph{et al.} 2010), this function calculates the small sample size version of Akaike Information Criterion for ENMs (Akaike 1974).  We use AICc (instead of AIC) regardless of sample size based on the recommendation of Burnham and Anderson (1998, 2004).  The number of parameters is determined by counting the number of non-zero parameters in the \code{maxent} lambda file.  See Warren \emph{et al.} (2014) for limitations of this approach, namely that the number of parameters is an estimate of the true degrees of freedom.  For Maxent ENMs, AICc is calculated by standardizing the raw output such that all cells in the study extent sum to 1.  The likelihood of the data for a given model is then calculated by taking the product of the raw output values for all grid cells that contain an occurrence locality (Warren and Seifert 2011).  
 }
 
 \value{
@@ -48,6 +46,8 @@ where \emph{vals} is a vector of Maxent raw values at occurrence localities and 
 
 \note{
 Returns all \code{NA}s if the number of parameters is larger than the number of observations (occurrence localities).
+
+This function could produce erroneous results in version 0.1.0. when calculating AICc on multiple models simultaneously.  This problem has been addressed in version 0.1.1.
 }
 
 \references{

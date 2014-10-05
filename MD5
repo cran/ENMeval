@@ -1,9 +1,9 @@
-c05a5095ba9615305a8ca47e3c6bbb5a *DESCRIPTION
+564e54393ad075ba6a76fdd10f351e67 *DESCRIPTION
 0bdc6c1eff33003d0df5fc1fee03ad45 *NAMESPACE
-e66afa6060ab145a65f6b51fa4eba9ae *NEWS
+bc048e82e089146529c4edcc8034670b *NEWS
 fc592774611ba6c8faf24df7dee70a9d *R/ENMevaluate.R
 20161499d12940d47a6c55f0c44aa535 *R/all.classes.R
-35d73746c8f84113314d2acec720a53b *R/calc.aicc.R
+365bebe17118c0ec5741e6fb5ae683a6 *R/calc.aicc.R
 acd74666c73ee3fa2cb899943f8ad3e5 *R/calc.niche.overlap.R
 ece2869f68923502d980b5ed313c0631 *R/corrected.var.R
 63532c00308fe7b3e91745c1fa205868 *R/eval.plot.R
@@ -16,12 +16,12 @@ f78f864d1f3ff012244f1af98ab34122 *R/get.params.R
 a01c964688a7306cd80cfef7c234c432 *R/get.user.R
 c79cc76972a851015a7e5fe620c2f89e *R/make.args.R
 3c13664f67138fae08c0dde2e04470da *R/tuning.R
-3085b68c250fb26226a56db335ede96a *data/enmeval_results.rda
+118a5a8e32bdcb48c30865eb9c39a242 *data/enmeval_results.rda
 54590e4ff15e284ffe3161e84b720b3a *inst/CITATION
 923a3323669101a2af3180f05dbd0db4 *man/ENMeval-package.Rd
 8540498a55b6573bc7f35de949a16fd7 *man/ENMevaluate.Rd
 5d6dbcba1c6f04444322bc0ffca5b39c *man/ENMevaluation-class.Rd
-79202cf4c8c863d18b734dfb4a5a2e1c *man/calc.aicc.Rd
+06b3c0f716ddf507f3684cb7b03dfe78 *man/calc.aicc.Rd
 aebd36504164f4fd3d03906a8887b833 *man/calc.niche.overlap.Rd
 581e9db097348769a312405887283fe8 *man/corrected.var.Rd
 8b6e688668a9afbecadc90a4acb917fe *man/enmeval_results.Rd
