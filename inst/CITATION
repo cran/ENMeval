@@ -11,9 +11,9 @@ citEntry(entry	= "Article",
 			as.person("R.P. Anderson")),
   journal	= "Methods in Ecology and Evolution",
   year 		= "2014",
-  volume	= "",
-  number	= "",
-  pages		= "",
+  volume	= "5",
+  number	= "11",
+  pages		= "1198-1205",
 
   textVersion	= 
   paste("Muscarella, R., Galante, P.J., Soley-Guardia, M., Boria, R.A., Kass, J., Uriarte, M. and R.P. Anderson (2014). ENMeval: An R package for conducting spatially independent evaluations and estimating optimal model complexity for ecological niche models. Methods in Ecology and Evolution.")

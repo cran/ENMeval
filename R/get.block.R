@@ -42,4 +42,3 @@ get.block <- function(occ, bg.coords){
 	out <- list(occ.grp=occ.grp, bg.grp=bg.grp)
 	return(out)
 }
-
