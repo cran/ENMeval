@@ -1,6 +1,6 @@
-769e88c18008f3c4755826cb28c00a08 *DESCRIPTION
-697d4512a3015d0d7b8230af7bbd2336 *NAMESPACE
-908cb9a507773e849f07981fcf7729ff *NEWS
+fd810546d4ed3b0c83d4f672e29112c3 *DESCRIPTION
+44f7c020646070598881a329b1e8c093 *NAMESPACE
+8b9a5e9bc68512ff9d044eaceb76bbc7 *NEWS
 edf5e8cfa2c34b82bf2565eb4d0d8144 *R/ENMevaluate.R
 c5937a7726d408ebd04f0e44418f7532 *R/all.classes.R
 792ee492dae749a38e301ca3d8a7d3a4 *R/calc.aicc.R
@@ -15,7 +15,7 @@ f78f864d1f3ff012244f1af98ab34122 *R/get.params.R
 eed85b04277dfdaed6f47392294cdd38 *R/get.randomkfold.R
 9a6d44febbfb41924aa7b6e58a86ee3b *R/get.user.R
 bdf374b4c260a9e842bfb48fbaf3e58c *R/make.args.R
-a0e9d9b59d7aa90f5501b73ebee14f87 *R/tuning.R
+7c1b13dfa9ba2ccc6a490d7ed9856857 *R/tuning.R
 1188fdb41c3b154be10ba26e192eb191 *data/enmeval_results.rda
 f9732f43a0182a597b487e3bf69d7d13 *inst/CITATION
 cac3604a5df897ff24c4757e866b5d10 *man/ENMeval-package.Rd
