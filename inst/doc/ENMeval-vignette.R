@@ -5,6 +5,7 @@ knitr::opts_chunk$set(collapse=TRUE, message=FALSE, warning=FALSE, comment="#>")
 ## ----occDownload---------------------------------------------------------
 if (!require('spocc')) install.packages('spocc', repos="http://cran.us.r-project.org")
 if (!require('ENMeval')) install.packages('ENMeval', repos="http://cran.us.r-project.org")
+
 library(spocc)
 library(ENMeval)
 
@@ -19,6 +20,8 @@ occs <- as.data.frame(bv$gbif$data$Bradypus_variegatus[,2:3])
 occs <- occs[!duplicated(occs),]
 
 ## ----envDownload, warning=FALSE, message=FALSE, fig.width = 5, fig.height = 5----
+library(raster)
+
 # First, load some predictor rasters from the dismo folder:
 files <- list.files(path=paste(system.file(package='dismo'), '/ex', sep=''), pattern='grd', full.names=TRUE)
 
@@ -44,6 +47,8 @@ occs <- occs[-index,]
 points(occs, col='red')
 
 ## ----backgExt, message=FALSE---------------------------------------------
+library(sp)
+
 # Make a SpatialPoints object
 occs.sp <- SpatialPoints(occs)
 
@@ -81,8 +86,10 @@ plot(envs.backg[[1]], main=names(envs.backg)[1])
 points(occs)
 
 ## ----backgPts, fig.width = 5, fig.height = 5-----------------------------
-# Randomly sample 10,000 background points from one background extent raster (only one per cell without replacement). Note: Since the raster has <10,000 pixels, you'll get a warning and all pixels will be used for background.
-bg <- randomPoints(envs.backg[[1]], n=10000)
+library(dismo)
+
+# Randomly sample 10,000 background points from one background extent raster (only one per cell without replacement). Note: Since the raster has <10,000 pixels, you'll get a warning and all pixels will be used for background. We will be sampling from the biome variable because it is missing some grid cells, and we are trying to avoid getting background points with NA.
+bg <- randomPoints(envs.backg[[9]], n=10000)
 bg <- as.data.frame(bg)
 
 # Notice how we have pretty good coverage (every cell).
@@ -156,16 +163,16 @@ points(bg, pch=21, bg=bg.grp)
 data(eval2)
 
 ## ----enmeval1a, eval=FALSE-----------------------------------------------
-#  eval1 <- ENMevaluate(occs, envs, bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L'))
+#  eval1 <- ENMevaluate(occs, envs, bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L'), algorithm='maxent.jar')
 
 ## ----enmeval1b, eval=FALSE-----------------------------------------------
-#  eval2 <- ENMevaluate(occ=occs, env=envs, bg.coords=bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L','LQ','LQP'))
+#  eval2 <- ENMevaluate(occ=occs, env=envs, bg.coords=bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L','LQ','LQP'), algorithm='maxent.jar')
 
 ## ----enmeval2par, eval=FALSE---------------------------------------------
-#  eval2.par <- ENMevaluate(occs, envs, bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L','LQ','LQP'), parallel=TRUE)
+#  eval2.par <- ENMevaluate(occs, envs, bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L','LQ','LQP'), parallel=TRUE, algorithm='maxent.jar')
 
 ## ----enmeval3, eval=FALSE------------------------------------------------
-#  eval3 <- ENMevaluate(occs, envs, bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L','LQ','LQP'), rasterPreds=FALSE)
+#  eval3 <- ENMevaluate(occs, envs, bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L','LQ','LQP'), rasterPreds=FALSE, algorithm='maxent.jar')
 
 ## ----enmeval4, results='hide'--------------------------------------------
 overlap <- calc.niche.overlap(eval2@predictions, stat='D')
@@ -177,6 +184,9 @@ overlap
 eval2
 
 str(eval2, max.level=3)
+
+## ----stuff1--------------------------------------------------------------
+eval2@algorithm
 
 ## ----stuff2--------------------------------------------------------------
 eval2@results
