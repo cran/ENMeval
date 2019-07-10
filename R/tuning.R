@@ -95,7 +95,7 @@ tuning <- function (occ, env, bg.coords, occ.grp, bg.grp, method, algorithm, arg
                                            userArgs, rasterPreds, clamp)
                      }
     }
-    stopCluster(c1)
+    # stopCluster(c1)
   } else {
     out <- list()
     if (progbar == TRUE & !is.function(updateProgress)) {
@@ -193,6 +193,12 @@ tuning <- function (occ, env, bg.coords, occ.grp, bg.grp, method, algorithm, arg
 
   if (rasterPreds==TRUE) {
     names(predictive.maps) <- settings
+    if(parallel) {
+      message("predictions are not available when running in parallel")
+      predictive.maps <- stack()
+      stopCluster(c1)
+    }# because predictive maps won't be available 
+    # when running in parallel, it is better just to remove them from results
   }
 
   results <- ENMevaluation(algorithm = alg, results = res, predictions = predictive.maps,
