@@ -1,20 +1,15 @@
-## ----setup, echo = FALSE, include=FALSE----------------------------------
+## ----setup, echo = FALSE, include=FALSE---------------------------------------
 library(knitr)
 knitr::opts_chunk$set(collapse=TRUE, message=FALSE, warning=FALSE, comment="#>")
 
-## ----occDownload---------------------------------------------------------
-if (!require('spocc')) install.packages('spocc', repos="http://cran.us.r-project.org")
-if (!require('ENMeval')) install.packages('ENMeval', repos="http://cran.us.r-project.org")
+## ----occDownload--------------------------------------------------------------
+if (!require('spocc')) install.packages('spocc', repos="https://cran.us.r-project.org")
+if (!require('ENMeval')) install.packages('ENMeval', repos="https://cran.us.r-project.org")
 
-library(spocc)
 library(ENMeval)
 
 # Search GBIF for occurrence data.
-bv <- occ('Bradypus variegatus', 'gbif', limit=300, has_coords=TRUE)
-
-# Get the latitude/coordinates for each locality. Also convert the tibble that occ() outputs
-# to a data frame for compatibility with ENMeval functions.
-occs <- as.data.frame(bv$gbif$data$Bradypus_variegatus[,2:3])
+occs <- readRDS("bvariegatus.rds")
 
 # Remove duplicate rows (Note that you may or may not want to do this).
 occs <- occs[!duplicated(occs),]
@@ -46,7 +41,7 @@ occs <- occs[-index,]
 # Let's plot our new points over the old ones to see what a good job we did.
 points(occs, col='red')
 
-## ----backgExt, message=FALSE---------------------------------------------
+## ----backgExt, message=FALSE--------------------------------------------------
 library(sp)
 
 # Make a SpatialPoints object
@@ -61,9 +56,9 @@ bb.buf <- extent(bb[1]-10, bb[3]+10, bb[2]-10, bb[4]+10)
 # Crop environmental layers to match the study extent
 envs.backg <- crop(envs, bb.buf)
 
-## ----removeCaribbean, message=FALSE, fig.width = 5, fig.height = 5-------
-if (!require('maptools')) install.packages('maptools', repos="http://cran.us.r-project.org")
-if (!require('rgeos')) install.packages('rgeos', repos="http://cran.us.r-project.org")
+## ----removeCaribbean, message=FALSE, fig.width = 5, fig.height = 5------------
+if (!require('maptools')) install.packages('maptools', repos="https://cran.us.r-project.org/")
+if (!require('rgeos')) install.packages('rgeos', repos="https://cran.us.r-project.org/")
 library(maptools)
 library(rgeos)
 
@@ -85,7 +80,7 @@ envs.backg <- mask(envs.backg, ca.sa)
 plot(envs.backg[[1]], main=names(envs.backg)[1])
 points(occs)
 
-## ----backgPts, fig.width = 5, fig.height = 5-----------------------------
+## ----backgPts, fig.width = 5, fig.height = 5----------------------------------
 library(dismo)
 
 # Randomly sample 10,000 background points from one background extent raster (only one per cell without replacement). Note: Since the raster has <10,000 pixels, you'll get a warning and all pixels will be used for background. We will be sampling from the biome variable because it is missing some grid cells, and we are trying to avoid getting background points with NA.
@@ -96,14 +91,14 @@ bg <- as.data.frame(bg)
 plot(envs.backg[[1]], legend=FALSE)
 points(bg, col='red')
 
-## ----part.block, fig.width = 5, fig.height = 5---------------------------
+## ----part.block, fig.width = 5, fig.height = 5--------------------------------
 blocks <- get.block(occs, bg)
 str(blocks)
 
 plot(envs.backg[[1]], col='gray', legend=FALSE)
 points(occs, pch=21, bg=blocks$occ.grp)
 
-## ----part.ck1, fig.width = 5, fig.height = 5-----------------------------
+## ----part.ck1, fig.width = 5, fig.height = 5----------------------------------
 check1 <- get.checkerboard1(occs, envs, bg, aggregation.factor=5)
 
 plot(envs.backg[[1]], col='gray', legend=FALSE)
@@ -118,26 +113,26 @@ plot(envs.backg[[1]], col='gray', legend=FALSE)
 points(bg, pch=21, bg=check1.large$bg.grp)
 points(occs, pch=21, bg=check1.large$occ.grp, col='white', cex=1.5)
 
-## ----part.ck2, fig.width = 5, fig.height = 5-----------------------------
+## ----part.ck2, fig.width = 5, fig.height = 5----------------------------------
 check2 <- get.checkerboard2(occs, envs, bg, aggregation.factor=c(5,5))
 
 plot(envs.backg[[1]], col='gray', legend=FALSE)
 points(bg, pch=21, bg=check2$bg.grp)
 points(occs, pch=21, bg=check2$occ.grp, col='white', cex=1.5)
 
-## ----part.jk, fig.width = 5, fig.height = 5------------------------------
+## ----part.jk, fig.width = 5, fig.height = 5-----------------------------------
 jack <- get.jackknife(occs, bg)
 
 plot(envs.backg[[1]], col='gray', legend=FALSE)
 points(occs, pch=21, bg=jack$occ.grp)  # note that colors are repeated here
 
-## ----part.rand, fig.width = 5, fig.height = 5----------------------------
+## ----part.rand, fig.width = 5, fig.height = 5---------------------------------
 random <- get.randomkfold(occs, bg, k=5)
 
 plot(envs.backg[[1]], col='gray', legend=FALSE)
 points(occs, pch=21, bg=random$occ.grp)
 
-## ----part.user1, fig.width = 5, fig.height = 5---------------------------
+## ----part.user1, fig.width = 5, fig.height = 5--------------------------------
 ngrps <- 10
 kmeans <- kmeans(occs, ngrps)
 occ.grp <- kmeans$cluster
@@ -145,13 +140,13 @@ occ.grp <- kmeans$cluster
 plot(envs.backg[[1]], col='gray', legend=FALSE)
 points(occs, pch=21, bg=occ.grp)
 
-## ----part.user2, fig.width = 5, fig.height = 5---------------------------
+## ----part.user2, fig.width = 5, fig.height = 5--------------------------------
 bg.grp <- rep(0, nrow(bg))
 
 plot(envs.backg[[1]], col='gray', legend=FALSE)
 points(bg, pch=16, bg=bg.grp)
 
-## ----part.user3, fig.width = 5, fig.height = 5---------------------------
+## ----part.user3, fig.width = 5, fig.height = 5--------------------------------
 centers <- kmeans$center
 d <- pointDistance(bg, centers, lonlat=T)
 bg.grp <- apply(d, 1, function(x) which(x==min(x)))
@@ -159,81 +154,81 @@ bg.grp <- apply(d, 1, function(x) which(x==min(x)))
 plot(envs.backg[[1]], col='gray', legend=FALSE)
 points(bg, pch=21, bg=bg.grp)
 
-## ----load_vignette_data, echo = FALSE------------------------------------
+## ----load_vignette_data, echo = FALSE-----------------------------------------
 data(eval2)
 
-## ----enmeval1a, eval=FALSE-----------------------------------------------
+## ----enmeval1a, eval=FALSE----------------------------------------------------
 #  eval1 <- ENMevaluate(occs, envs, bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L'), algorithm='maxent.jar')
 
-## ----enmeval1b, eval=FALSE-----------------------------------------------
+## ----enmeval1b, eval=FALSE----------------------------------------------------
 #  eval2 <- ENMevaluate(occ=occs, env=envs, bg.coords=bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L','LQ','LQP'), algorithm='maxent.jar')
 
-## ----enmeval2par, eval=FALSE---------------------------------------------
+## ----enmeval2par, eval=FALSE--------------------------------------------------
 #  eval2.par <- ENMevaluate(occs, envs, bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L','LQ','LQP'), parallel=TRUE, algorithm='maxent.jar')
 
-## ----enmeval3, eval=FALSE------------------------------------------------
+## ----enmeval3, eval=FALSE-----------------------------------------------------
 #  eval3 <- ENMevaluate(occs, envs, bg, method='checkerboard2', RMvalues=c(1,2), fc=c('L','LQ','LQP'), rasterPreds=FALSE, algorithm='maxent.jar')
 
-## ----enmeval4, results='hide'--------------------------------------------
+## ----enmeval4, results='hide'-------------------------------------------------
 overlap <- calc.niche.overlap(eval2@predictions, stat='D')
 
-## ----enmeval5------------------------------------------------------------
+## ----enmeval5-----------------------------------------------------------------
 overlap
 
-## ----stuff---------------------------------------------------------------
+## ----stuff--------------------------------------------------------------------
 eval2
 
 str(eval2, max.level=3)
 
-## ----stuff1--------------------------------------------------------------
+## ----stuff1-------------------------------------------------------------------
 eval2@algorithm
 
-## ----stuff2--------------------------------------------------------------
+## ----stuff2-------------------------------------------------------------------
 eval2@results
 
 eval2@results[which(eval2@results$delta.AICc==0),]
 
-## ----stuff3--------------------------------------------------------------
+## ----stuff3-------------------------------------------------------------------
 eval2@predictions
 
-## ----stuff4, fig.width = 5, fig.height = 5-------------------------------
+## ----stuff4, fig.width = 5, fig.height = 5------------------------------------
 plot(eval2@predictions[[which(eval2@results$delta.AICc==0)]], main="Relative occurrence rate")
 
-## ----mod.obj1------------------------------------------------------------
+## ----mod.obj1-----------------------------------------------------------------
 aic.opt <- eval2@models[[which(eval2@results$delta.AICc==0)]]
 
 aic.opt
 
-## ----mod.obj3------------------------------------------------------------
+## ----mod.obj3-----------------------------------------------------------------
 aic.opt@results
 
-## ----mod.obj4------------------------------------------------------------
+## ----mod.obj4-----------------------------------------------------------------
 var.importance(aic.opt)
 
-## ----mod.obj2------------------------------------------------------------
+## ----mod.obj2-----------------------------------------------------------------
 aic.opt@lambdas
 
-## ----mod.obj5------------------------------------------------------------
+## ----mod.obj5-----------------------------------------------------------------
 eval2@partition.method
 
-## ----plot.res, fig.width = 5, fig.height = 5-----------------------------
+## ----plot.res, fig.width = 5, fig.height = 5----------------------------------
 eval.plot(eval2@results)
 
-## ----plot.res2, fig.width = 5, fig.height = 5----------------------------
+## ----plot.res2, fig.width = 5, fig.height = 5---------------------------------
 eval.plot(eval2@results, 'Mean.AUC', var='Var.AUC')
 
-## ----plot.res3, fig.width = 5, fig.height = 5----------------------------
+## ----plot.res3, fig.width = 5, fig.height = 5---------------------------------
 df <- var.importance(aic.opt)
 barplot(df$permutation.importance, names.arg=df$variable, las=2, ylab="Permutation Importance")
 
-## ----plot.pred1, fig.width = 5, fig.height = 5, mar=c(2,2,1,0)-----------
+## ----plot.pred1, fig.width = 5, fig.height = 5, mar=c(2,2,1,0)----------------
 plot(eval2@predictions[[1]], legend=F)
 
 # Now add the occurrence and background points, colored by evaluation bins:
 points(eval2@bg.pts, pch=3, col=eval2@bg.grp, cex=0.5)
 points(eval2@occ.pts, pch=21, bg=eval2@occ.grp)
 
-## ----plot.pred2, fig.width = 5, fig.height = 2.5-------------------------
+## ----plot.pred2, fig.width = 5, fig.height = 2.5------------------------------
 # bisect the plotting area to make two columns
 par(mfrow=c(1,2), mar=c(2,2,1,0))
 
@@ -241,6 +236,6 @@ plot(eval2@predictions[['L_2']], ylim=c(-30,20), xlim=c(-90,-40), legend=F, main
 
 plot(eval2@predictions[['LQP_1']], ylim=c(-30,20), xlim=c(-90,-40), legend=F, main='LQP_1 prediction')
 
-## ----response_curves, eval=FALSE-----------------------------------------
+## ----response_curves, eval=FALSE----------------------------------------------
 #    response(eval2@models[[1]])
 
