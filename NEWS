@@ -1,8 +1,21 @@
+ENMeval 2.0.0
+===========
+o  Complete redesign of nearly all functionality. Code is now much tidier and readable thanks to dplyr and tidyr, and commented documentation is more prevalent throughout.
+o  New object-oriented algorithm specification for using any algorithm with ENMeval. Implementations of the new ENMdetails object exist for maxent.jar, maxnet, and BIOCLIM as examples of what is possible.
+o  Automated output metadata for tuning analyses which uses the Range Model Metadata Standards (R package rangeModelMetadata).
+o  New function for running null ENM simulations and calculating significance and effect sizes for empirical model performance metrics (Bohl et al. 2019 -- check ?ENMnulls).
+o  New partition schema for fully withheld testing data and evaluation without partitions. Also includes a new option for spatial block partitions to customize the spatial orientation of the blocks.
+o  Now implements continuous Boyce Index for training, validation, and full withheld testing data (via R package ecospat), and allows use of custom evaluation functions with the user.eval argument (see ?ENMevaluate).
+o  A suite of new visualization functions using ggplot2 that map partition groups, plot environmental similarity histograms for partition groups, map environmental similarity for partition groups, and plot histograms or violins for null ENM results. The original evaluation plots were also redone and now use ggplot.
+o  New analysis options for more flexibility (see ?ENMevaluate).
+o  Fully updated and extensive vignette (https://jamiemkass.github.io/ENMeval/articles/ENMeval-2.0.0-vignette.html) that walks through a full analysis while describing all the new functionality.
+o  Now supports doSNOW parallelization as well as doParallel. The doSNOW option has a functioning progress bar for parallel processes.
+
 ENMeval 0.3.1
 ===========
 o  Vignette no longer uses spocc to download occurrences due to intermittent problems downloading from GBIF. This data is now loaded from a RDS file.
 o  Various URL changes in vignette.
-
+=======
 
 ENMeval 0.3.0
 ===========
