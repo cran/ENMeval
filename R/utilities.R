@@ -8,6 +8,116 @@
 #' @usage lhs \%>\% rhs
 NULL
 
+#' @title Continuous Boyce Index (modified from ecospat package)
+#' @description This function was modified from ecospat::ecospat.boyce() by Cory
+#' Merow to make it run faster. It retains the same functionality as the original
+#' function. Function parameter information is taken from ecospat.boyce().
+#' @references ecospat package on CRAN: https://cran.r-project.org/package=ecospat
+#' @param fit	A vector or Raster-Layer containing the predicted suitability values
+#' @param obs	A vector containing the predicted suitability values or xy-coordinates (if "fit" is a Raster-Layer) of the validation points (presence records)
+#' @param nclass The number of classes or vector with class thresholds. If nclass=0, the Boyce index is calculated with a moving window (see next parameters)
+#' @param window.w The width of the moving window (by default 1/10 of the suitability range)
+#' @param res The resolution of the moving window (by default 100 focals)
+#' @param PEplot If true, plot the predicted to expected ratio along the suitability class
+
+boyce.cm <- function(fit, obs, nclass = 0, window.w = "default", res = 100, PEplot = TRUE)
+{
+  #t1=proc.time()
+  
+  if (class(fit) == "RasterLayer") {
+    if (class(obs) == "data.frame") {
+      obs <- raster::extract(fit, obs)
+    }
+    fit <- raster::getValues(fit)
+    fit <- fit[!is.na(fit)]
+  }
+  if (window.w == "default") {
+    window.w <- (max(fit) - min(fit))/10
+  }
+  interval <- c(min(fit), max(fit))
+  mini <- interval[1]
+  maxi <- interval[2]
+  if (nclass == 0) {
+    vec.mov <- seq(from = mini, to = maxi - window.w, by = (maxi - mini - window.w)/res)
+    vec.mov[res + 1] <- vec.mov[res + 1] + 1
+    interval <- cbind(vec.mov, vec.mov + window.w)
+  } else if (length(nclass) > 1) {
+    vec.mov <- c(mini, nclass)
+    interval <- cbind(vec.mov, c(vec.mov[-1], maxi))
+  } else if (nclass > 0 & length(nclass) < 2) {
+    vec.mov <- seq(from = mini, to = maxi, by = (maxi - mini)/nclass)
+  }
+  
+  #proc.time()-t1
+  
+  f <- apply(interval, 1, function(x,obs,fit){
+    cm1=sum(fit >= x[1] & fit <= x[2])/length(fit)
+    cm2=sum(obs >= x[1] & obs <= x[2])/length(obs)
+    cm2/cm1
+  }, obs, fit)
+  
+  to.keep <- which(f != "NaN")
+  f <- f[to.keep]
+  if (length(f) < 2) {
+    b <- NA
+  } else {
+    r <- c(1:length(f))[f != c(f[-1], FALSE)]
+    b <- stats::cor(f[r], vec.mov[to.keep][r], method = "spearman")
+  }
+  HS <- apply(interval, 1, sum)/2
+  HS[length(HS)] <- HS[length(HS)] - 1
+  HS <- HS[to.keep]
+  if (PEplot == TRUE) {
+    plot(HS, f, xlab = "Habitat suitability", ylab = "Predicted/Expected ratio",
+         col = "grey", cex = 0.75)
+    graphics::points(HS[r], f[r], pch = 19, cex = 0.75)
+  }
+  results <- list(F.ratio = f, Spearman.cor = round(b, 3), HS = HS)
+  return(results)
+}
+
+#' @title Convert old ENMevaluation objects to new ones
+#' @description Converts ENMevaluation objects made with version <=0.3.1 to
+#' new ones made with version >=2.0.0.
+#' @param e ENMevaluation object: the old object to convert
+#' @param envs RasterStack: the original predictor variables used to generate
+#' the old ENMevaluation object (these are used to make the new occs and bg slots
+#' which contain the predictor variable values)
+#' @note If bin.output was set to TRUE, \code{`e@results`} will be equivalent to 
+#' the new results.partitions slot. Some slots are unable to be filled in because
+#' previous versions of ENMeval did not record them in ENMevaluation objects:
+#' variable.importance, partition.settings, other.settings, doClamp (set to TRUE
+#' arbitrarily to avoid errors, but may actually have been FALSE), clamp.directions,
+#' taxon.name, and rmm.
+#' @export
+ENMevaluation_convert <- function(e, envs) {
+  # to avoid "no visible binding for global variable" error in R CMD CHECK
+  LAT <- LON <- features <- NULL
+  alg <- ifelse(grepl("Maxent", e@algorithm), "maxent.jar", "maxnet")
+  ts <- dplyr::distinct(e@results, fc = features, rm) %>% as.data.frame()
+  targs <- apply(ts, 1, function(x) paste(names(x), x, collapse = "_", sep = "."))
+  ts <- cbind(ts, tune.args = targs)
+  rs <- cbind(ts, e@results[,-1:-3])
+  names(rs)[-1:-3] <- c("auc.train", "auc.val.avg", "auc.val.sd", "auc.diff.avg", "auc.diff.sd", 
+                        "or.10p.avg", "or.10p.sd", "or.mtp.avg", "or.mtp.sd", "AICc", 
+                        "delta.AICc", "w.AIC", "ncoef")
+  occs <- e@occ.pts %>% dplyr::rename(lon = LON, lat = LAT) %>% as.data.frame()
+  occs <- cbind(occs, raster::extract(envs, occs))
+  bg <- e@bg.pts %>% dplyr::rename(lon = LON, lat = LAT) %>% as.data.frame()
+  bg <- cbind(bg, raster::extract(envs, bg))
+  ms <- e@models
+  names(ms) <- rs$tune.args
+  e_new <- ENMevaluation(algorithm = alg, tune.settings = as.data.frame(ts),
+                         results = rs, results.partitions = data.frame(),
+                         predictions = e@predictions, models = ms, 
+                         variable.importance = list(),
+                         partition.method = e@partition.method, partition.settings = list(),
+                         other.settings = list(), doClamp = TRUE, clamp.directions = list(), 
+                         taxon.name = "", occs = occs, occs.testing = data.frame(), 
+                         occs.grp = factor(e@occ.grp), bg = bg, bg.grp = factor(e@bg.grp),
+                         rmm = list())
+  return(e_new)
+}
 
 #' @title Find NA cells in a RasterStack
 #' @description Finds cells that are NA for at least one raster in a RasterStack.
