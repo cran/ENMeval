@@ -103,7 +103,7 @@ plot.sim.dataPrep <- function(e, envs, occs.z, bg.z, occs.grp, bg.grp, ref.data,
   }else if(any(is.null(bg.z), is.null(bg.grp))) {
     pts.plot <- occs.z %>% dplyr::mutate(type = rep(1, nrow(occs.z)), partition = factor(occs.grp))  
   }else{
-    pts.plot <- rbind(occs.z, bg.z) %>% 
+    pts.plot <- rbind(occs.z, bg.z) %>% as.data.frame() %>%
       dplyr::mutate(type = c(rep(1, nrow(occs.z)), rep(0, nrow(bg.z))), partition = factor(c(occs.grp, bg.grp)))
   }
   names(pts.plot)[1:2] <- c("longitude","latitude")
@@ -141,13 +141,14 @@ plot.sim.dataPrep <- function(e, envs, occs.z, bg.z, occs.grp, bg.grp, ref.data,
 }
 
 #' @title Similarity histogram plots for partition groups
-#' @description Plots environmental similarity of reference partitions (occurrences or background) 
-#' to remaining background (all other partitions). This function does not use raster data, and thus
-#' only calculates similarity values for data used in model training. Further, this function does
-#' not calculate similarity for categorical variables.
-#' @details When fully withheld testing groups are used, make sure to input either an ENMevaluation 
-#' object or the argument occs.testing.z. In the resulting plot, partition 1 refers to the training data,
-#' while partition 2 refers to the fully withheld testing group.
+#' @description Plots environmental similarity of reference partitions (occurrences or 
+#' background) to remaining data (occurrence and background for all other partitions). This 
+#' function does not use raster data, and thus only calculates similarity values for data used 
+#' in model training. Further, this function does not calculate similarity for categorical 
+#' variables.
+#' @details When fully withheld testing groups are used, make sure to input either an 
+#' ENMevaluation object or the argument occs.testing.z. In the resulting plot, partition 1 
+#' refers to the training data, while partition 2 refers to the fully withheld testing group.
 #' @param e ENMevaluation object
 #' @param occs.z data frame: longitude, latitude, and environmental predictor variable values for occurrence records, in that order (optional);
 #' the first two columns must be named "longitude" and "latitude"
@@ -159,7 +160,7 @@ plot.sim.dataPrep <- function(e, envs, occs.z, bg.z, occs.grp, bg.grp, ref.data,
 #' @param sim.type character: either "mess" for Multivariate Environmental Similarity Surface, "most_diff" for most different variable,
 #' or "most_sim" for most similar variable; uses similarity function from package rmaxent
 #' @param categoricals character vector: names of categorical variables in input RasterStack or data frames to be removed from the analysis;
-#' these must be specified as this function was intended for use with continuous data only
+#' these must be specified as this function was intended for use with continuous data only; these must be specified when inputting tabular data instead of an ENMevaluation object 
 #' @param envs.vars character vector: names of a predictor variable to plot similarities for; if left NULL, calculations are done
 #' with respect to all variables (optional) 
 #' @param occs.testing.z data frame: longitude, latitude, and environmental predictor variable values for fully withheld testing records, 
@@ -167,16 +168,19 @@ plot.sim.dataPrep <- function(e, envs, occs.z, bg.z, occs.grp, bg.grp, ref.data,
 #' @param hist.bins numeric: number of histogram bins for histogram plots; default is 30
 #' @param return.tbl boolean: if TRUE, return the data frames of similarity values used to make the ggplot instead of the plot itself
 #' @param quiet boolean: if TRUE, silence all function messages (but not errors)
-#' @details There are two variations for this plot. If "histogram", histograms are plotted showing the MESS estimates for each partition group. 
-#' If "raster", rasters are plotted showing the geographical MESS estimates for each partition group. 
-#' With sim.type option "mess", the similarity between environmental values associated with the 
-#' validation occurrences (per partition group) and those associated with the entire study extent (specified by the extent 
-#' of the input RasterStack "envs") are calculated, and the minimum similarity per grid is returned. 
-#' Higher negative values indicate greater environmental difference between the validation occurrences
-#' and the study extent, and higher positive values indicate greater similarity. This function uses the `similarity()` function 
-#' to calculate the similarities. See the below reference for details on MESS. 
-#' @return A ggplot of MESS calculations for data partitions.
+#' @details Histograms are plotted showing the environmental similarity estimates for each 
+#' partition group. The similarity between environmental values associated with the 
+#' validation occurrence or background records per partition group and those associated with 
+#' the remaining data (occurrences and background) are calculated, and the minimum similarity 
+#' per grid is returned. For option "mess", higher negative values indicate greater 
+#' environmental difference between the validation occurrences and the study extent, and higher 
+#' positive values indicate greater similarity. This function uses the `similarity()` function 
+#' from the package `rmaxent` (https://github.com/johnbaums/rmaxent/) to calculate the 
+#' similarities. Please see the below reference for details on MESS. 
+#' @return A ggplot of environmental similarities between the occurrence or background data 
+#' for each partition and the rest of the data (all other occurrences and background data).
 #' @references 
+#' Baumgartner J, Wilson P (2021). _rmaxent: Tools for working with Maxent in R_. R package version 0.8.5.9000, <URL: https://github.com/johnbaums/rmaxent>.
 #' Elith, J., Kearney, M., and Phillips, S. (2010) The art of modelling range-shifting species. \emph{Methods in Ecology and Evolution}, \bold{1}: 330-342. \doi{doi:10.1111/j.2041-210X.2010.00036.x}
 #' 
 #' @export
@@ -276,16 +280,17 @@ evalplot.envSim.hist <- function(e = NULL, occs.z = NULL, bg.z = NULL, occs.grp 
 }
 
 #' @title Similarity maps for partition groups
-#' @description Maps environmental similarity of reference partitions (occurrences or background) 
-#' to all cells with values in the raster. This function uses raster data, and thus
-#' cannot map similarity values using only tables of environmental values for occurrences or background. 
-#' Further, this function does not calculate similarity for categorical variables.
+#' @description Maps environmental similarity of reference partitions (occurrences or 
+#' background) to all cells with values in the predictor variable rasters. This function uses 
+#' raster data, and thus cannot map similarity values using only tables of environmental values f
+#' or occurrences or background. Further, this function does not calculate similarity for 
+#' categorical variables.
 #' @details When fully withheld testing groups are used, make sure to input either an ENMevaluation 
 #' object or the argument occs.testing.z. In the resulting plot, partition 1 refers to the training data,
 #' while partition 2 refers to the fully withheld testing group.
 #' @param e ENMevaluation object (optional) 
 #' @param envs RasterStack: environmental predictor variables used to build the models in "e"; categorical variables should be 
-#' removed before input, as they cannot be used to calculate MESS
+#' removed before input or identified with the argument "categoricals", as they cannot be used to calculate MESS
 #' @param occs.z data frame: longitude, latitude, and environmental predictor variable values for occurrence records, in that order (optional);
 #' the first two columns must be named "longitude" and "latitude"
 #' @param occs.grp numeric vector: partition groups for occurrence records (optional)
@@ -310,16 +315,20 @@ evalplot.envSim.hist <- function(e = NULL, occs.z = NULL, bg.z = NULL, occs.grp 
 #' @param return.tbl boolean: if TRUE, return the data frames of similarity values used to make the ggplot instead of the plot itself
 #' @param return.ras boolean: if TRUE, return the RasterStack of similarity values used to make the ggplot instead of the plot itself
 #' @param quiet boolean: if TRUE, silence all function messages (but not errors)
-#' @details There are two variations for this plot. If "histogram", histograms are plotted showing the MESS estimates for each partition group. 
-#' If "raster", rasters are plotted showing the geographical MESS estimates for each partition group. 
-#' With sim.type option "mess", the similarity between environmental values associated with the 
-#' validation occurrences (per partition group) and those associated with the entire study extent (specified by the extent 
-#' of the input RasterStack "envs") are calculated, and the minimum similarity per grid is returned. 
-#' Higher negative values indicate greater environmental difference between the validation occurrences
-#' and the study extent, and higher positive values indicate greater similarity. This function uses the `similarity()` function 
-#' to calculate the similarities. See the below reference for details on MESS. 
-#' @return A ggplot of MESS calculations for data partitions.
+#' @details Rasters are plotted showing the environmental similarity estimates for each 
+#' partition group. The similarity between environmental values associated with the 
+#' validation occurrence or background records per partition group and those associated with 
+#' the entire study extent (specified by the extent of the input RasterStack "envs") are 
+#' calculated, and the minimum similarity per grid is returned. For option "mess", higher 
+#' negative values indicate greater environmental difference between the validation occurrences 
+#' and the study extent, and higher positive values indicate greater similarity. This function 
+#' uses the `similarity()` function from the package `rmaxent` 
+#' (https://github.com/johnbaums/rmaxent/) to calculate the similarities. Please see the below 
+#' reference for details on MESS. 
+#' @return A ggplot of environmental similarities between the occurrence or background data 
+#' for each partition and all predictor variable values in the extent.
 #' @references 
+#' Baumgartner J, Wilson P (2021). _rmaxent: Tools for working with Maxent in R_. R package version 0.8.5.9000, <URL: https://github.com/johnbaums/rmaxent>.
 #' Elith, J., Kearney, M., and Phillips, S. (2010) The art of modelling range-shifting species. \emph{Methods in Ecology and Evolution}, \bold{1}: 330-342. \doi{doi:10.1111/j.2041-210X.2010.00036.x}
 #' 
 #' @export

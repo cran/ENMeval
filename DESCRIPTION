@@ -1,8 +1,8 @@
 Package: ENMeval
 Type: Package
 Title: Automated Tuning and Evaluations of Ecological Niche Models
-Version: 2.0.1
-Date: 2021-06-11
+Version: 2.0.2
+Date: 2021-12-13
 Authors@R: c(
   person("Jamie M.","Kass", email = "jamie.m.kass@gmail.com", role = c("aut","cre")), 
   person("Robert","Muscarella", role = "aut"),
@@ -17,15 +17,15 @@ Description: Runs ecological niche models over all combinations of user-defined 
 License: GPL
 Encoding: UTF-8
 Depends: methods, R (>= 3.5.0), magrittr
-Imports: raster, dismo, doSNOW, doParallel, parallel, foreach, utils,
-        graphics, stats, grDevices, maxnet, dplyr, tidyr, ggplot2,
-        testthat, glmnet, rangeModelMetadata
-Suggests: rJava (>= 0.5-0), knitr, rmarkdown, spocc, RColorBrewer,
-        rasterVis, sf, blockCV, devtools, tibble, latticeExtra
+Imports: sp, raster, dismo, doSNOW, doParallel, parallel, foreach,
+        utils, graphics, stats, grDevices, maxnet, dplyr, tidyr,
+        ggplot2, testthat, glmnet, rangeModelMetadata, rlang
 RoxygenNote: 7.1.1
 LazyData: true
+Suggests: rmarkdown, knitr, rJava (>= 0.5-0), spocc, RColorBrewer,
+        rasterVis, sf, blockCV, devtools, tibble, latticeExtra, ecospat
 NeedsCompilation: no
-Packaged: 2021-06-11 16:21:02 UTC; kass
+Packaged: 2021-12-13 01:15:26 UTC; kass
 Author: Jamie M. Kass [aut, cre],
   Robert Muscarella [aut],
   Peter J. Galante [aut],
@@ -35,4 +35,4 @@ Author: Jamie M. Kass [aut, cre],
   Mariano Soley-Guardia [aut],
   Robert P. Anderson [aut]
 Repository: CRAN
-Date/Publication: 2021-06-11 23:40:02 UTC
+Date/Publication: 2021-12-13 09:10:09 UTC

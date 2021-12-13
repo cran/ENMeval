@@ -63,7 +63,11 @@ with and without rasters.}
 
 \item{tune.args}{named list: model settings to be tuned (i.e., for Maxent models:  \code{list(fc = c("L","Q"), rm = 1:3)})}
 
-\item{partitions}{character: name of partitioning technique (see \code{?partitions}).}
+\item{partitions}{character: name of partitioning technique. Currently available options are
+the nonspatial partitions "randomkfold" and "jackknife", and the spatial partitions "block",
+"checkerboard1", and "checkerboard2", "testing" for partitioning with fully withheld data (see 
+argument occs.testing), the "user" option (see argument user.grp), and "none" for no partitioning 
+(see \code{?partitions} for details).}
 
 \item{algorithm}{character: name of the algorithm used to build models. Currently one of "maxnet",
 "maxent.jar", or "bioclim", else the name from a custom ENMdetails implementation.}
@@ -149,7 +153,7 @@ the extensive vignette for fully worked examples:
 <https://jamiemkass.github.io/ENMeval/articles/ENMeval-2.0.0-vignette.html>.
 }
 \details{
-There are a few methodological details in the implementation of ENMeval 2.0.0 that are important to mention.
+There are a few methodological details in the implementation of ENMeval >=2.0.0 that are important to mention.
 There is also a brief discussion of some points relevant to null models in ?ENMnulls.
 
 1. By default, validation AUC is calculated with respect to the full background (training + validation).

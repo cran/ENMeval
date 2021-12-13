@@ -22,7 +22,11 @@
 #' one column for each predictor variable. See Details for important distinctions between running the function
 #' with and without rasters.
 #' @param tune.args named list: model settings to be tuned (i.e., for Maxent models:  \code{list(fc = c("L","Q"), rm = 1:3)})
-#' @param partitions character: name of partitioning technique (see \code{?partitions}).
+#' @param partitions character: name of partitioning technique. Currently available options are
+#' the nonspatial partitions "randomkfold" and "jackknife", and the spatial partitions "block",
+#' "checkerboard1", and "checkerboard2", "testing" for partitioning with fully withheld data (see 
+#' argument occs.testing), the "user" option (see argument user.grp), and "none" for no partitioning 
+#' (see \code{?partitions} for details).
 #' @param algorithm character: name of the algorithm used to build models. Currently one of "maxnet",
 #' "maxent.jar", or "bioclim", else the name from a custom ENMdetails implementation.
 #' @param partition.settings named list: used to specify certain settings for partitioning schema.
@@ -71,7 +75,7 @@
 #' @param occ,env,bg.coords,RMvalues,fc,occ.grp,bg.grp,method,bin.output,rasterPreds,clamp,progbar These arguments from previous versions are backward-compatible to avoid unnecessary errors for older scripts, but in a later version
 #' these arguments will be permanently deprecated.
 #' 
-#' @details There are a few methodological details in the implementation of ENMeval 2.0.0 that are important to mention.
+#' @details There are a few methodological details in the implementation of ENMeval >=2.0.0 that are important to mention.
 #' There is also a brief discussion of some points relevant to null models in ?ENMnulls.
 #' 
 #' 1. By default, validation AUC is calculated with respect to the full background (training + validation).
@@ -197,7 +201,7 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   # legacy argument handling so ENMevaluate doesn't break for older code
   all.legacy <- list(occ, env, bg.coords, RMvalues, fc, occ.grp, bg.grp, method, bin.output, rasterPreds)
   if(sum(sapply(all.legacy, function(x) !is.null(x))) > 0) {
-    if(quiet != TRUE) message("* Running ENMeval v2.0.0 with legacy arguments. These will be phased out in the next version.")
+    if(quiet != TRUE) message("* Running ENMeval v2.0.2 with legacy arguments. These will be phased out in the next version.")
   }
   if(!is.null(occ)) occs <- occ
   if(!is.null(env)) envs <- env
@@ -224,6 +228,14 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   # record start time
   start.time <- proc.time()
   
+  # check if ecospat is installed, and if not, prevent CBI calculations
+  if((requireNamespace("ecospat", quietly = TRUE))) {
+    ecospat.use <- TRUE
+  }else{
+    message("Package ecospat is not installed, so Continuous Boyce Index (CBI) cannot be calculated.")
+    ecospat.use <- FALSE
+  }
+  
   ######################## #
   # INITIAL DATA CHECKS ####
   ######################## #
@@ -240,6 +252,8 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   if(is.null(other.settings)) other.settings <- list(abs.auc.diff = TRUE, 
                                                      pred.type = "cloglog", 
                                                      validation.bg = "full")
+  # add whether to use ecospat to other.settings to avoid multiple calls to require()
+  other.settings <- c(other.settings, ecospat.use = ecospat.use)
   
   # make sure taxon name column is not included
   if(class(occs[,1]) == "character" | class(bg[,1]) == "character") stop("* If first column of input occurrence or background data is the taxon name, remove it and instead include the 'taxon.name' argument. The first two columns must be the longitude and latitude of the occurrence/background localities.")
@@ -465,6 +479,11 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
                          left = clamp.directions$left, right = clamp.directions$right, 
                          categoricals = categoricals)
       if(quiet != TRUE) message("* Clamping predictor variable rasters...")
+    }else{
+      if(is.null(clamp.directions)) {
+        clamp.directions$left <- names(d[, 3:(ncol(d)-1)])
+        clamp.directions$right <- names(d[, 3:(ncol(d)-1)])
+      }
     }
   }else{
     other.settings$doClamp <- FALSE
@@ -521,9 +540,9 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   ################# #
   # print model-specific message
   if(is.null(taxon.name)) {
-    if(quiet != TRUE) message(paste("\n*** Running ENMeval v2.0.0 with", enm@msgs(tune.args, other.settings), "***\n"))
+    if(quiet != TRUE) message(paste("\n*** Running ENMeval v2.0.2 with", enm@msgs(tune.args, other.settings), "***\n"))
   }else{
-    if(quiet != TRUE) message(paste("\n*** Running ENMeval v2.0.0 for", taxon.name, "with", enm@msgs(tune.args, other.settings), "***\n"))
+    if(quiet != TRUE) message(paste("\n*** Running ENMeval v2.0.2 for", taxon.name, "with", enm@msgs(tune.args, other.settings), "***\n"))
   }
   
   ################# #
