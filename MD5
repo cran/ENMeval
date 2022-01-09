@@ -1,8 +1,8 @@
-9f40829642435fb3e10c7c5858fe3168 *DESCRIPTION
+36581a97e5082ba44af65a9b4b0cbb4c *DESCRIPTION
 1539bcd4a1433f5bcbcdd38c4b220e49 *NAMESPACE
-09cc240dc70674f6a7a23ba6e33ce34c *NEWS
+9efc1af1b946cd6edcc0f2b2900ffdd7 *NEWS
 9add0d33752edc73a8eafd9ccab16459 *R/ENMeval-package.R
-31c04b464c9906ef359eff79501f322c *R/ENMevaluate.R
+700cbf068323a1dc526ede93bfd72df4 *R/ENMevaluate.R
 016418f69be5ae4d0f9f24dba9a81803 *R/ENMnulls.R
 66cd552c2d4837dc217fdcf6c5210f82 *R/bvariegatus.R
 7de595a979682f5b248a79978c800796 *R/classes.R
@@ -14,11 +14,11 @@ f99534129ed033c33c5f61774a91e629 *R/enmeval_results.R
 29ae035efb955ae83c9426aa3d6ccbe4 *R/plotting.R
 4c29df426fbc8abc4c482b6b79118b9a *R/rmaxent_similarity.R
 163a73fa5fae1de9db982f6e019560a1 *R/rmm.R
-8b470395af69f307ae913cab31c01db5 *R/tune.enm.R
+927c6af930d42aa6c8a9c9d723cb51f8 *R/tune.enm.R
 82907bc8a40b69890ff90c8c84a513c9 *R/utilities.R
 f6ec02d5e2edb95b70f1b154ff25ddb5 *R/zzz.R
-8879c25563d4f0af1239dca572c6b737 *README.md
-a02a4fefe6fabb3a072ea99c684c6a93 *build/partial.rdb
+9a3d36e9616bea5db3e510ad13c54c68 *README.md
+e6aa1bfe9e4348a2f552337ab872377d *build/partial.rdb
 5d29980fe7bb72bd261e5ad3861d2b3f *data/bvariegatus.rda
 1069aab09924c497cf9e7d2636149e7a *data/enmeval_results.rda
 4e55e723a99b4d0a308127a76ddff247 *inst/CITATION
