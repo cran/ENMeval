@@ -54,9 +54,10 @@ maxent.jar.args <- function(occs.z, bg.z, tune.tbl.i, other.settings) {
   return(out)
 }
 
-maxent.jar.predict <- function(mod, envs, tune.tbl.i, other.settings) {
+maxent.jar.predict <- function(mod, envs, other.settings) {
   output.format <- paste0("outputformat=", other.settings$pred.type)
-  pred <- dismo::predict(mod, envs, args = c(output.format, "doclamp=false"), na.rm = TRUE)
+  model.clamp <- ifelse(other.settings$doClamp == TRUE, "doclamp=true", "doclamp=false")
+  pred <- dismo::predict(mod, envs, args = c(output.format, model.clamp), na.rm = TRUE)
   return(pred)
 }
 
@@ -67,7 +68,7 @@ maxent.jar.ncoefs <- function(mod) {
   return(np)
 }
 
-maxent.jar.varimp <- function(mod) {
+maxent.jar.variable.importance <- function(mod) {
   res <- mod@results
   # percent contribution is a heuristic measure of variable importance
   # quoting A Brief Tutorial on Maxent (Phillips 2017):
@@ -100,4 +101,4 @@ maxent.jar.varimp <- function(mod) {
 #' @export
 enm.maxent.jar <- ENMdetails(name = maxent.jar.name, fun = maxent.jar.fun, errors = maxent.jar.errors,
                              msgs = maxent.jar.msgs, args = maxent.jar.args,
-                             predict = maxent.jar.predict, ncoefs = maxent.jar.ncoefs, varimp = maxent.jar.varimp)
+                             predict = maxent.jar.predict, ncoefs = maxent.jar.ncoefs, variable.importance = maxent.jar.variable.importance)

@@ -9,7 +9,7 @@ NULL
 #' @slot partition.method character: partition method used
 #' @slot partition.settings list: partition settings used (i.e., value of *k* or aggregation factor)
 #' @slot other.settings list: other modeling settings used (i.e., decisions about clamping, AUC diff calculation)
-#' @slot doClamp boolean: whether or not clamping was used 
+#' @slot doClamp logical: whether or not clamping was used 
 #' @slot clamp.directions list: the clamping directions specified 
 #' @slot results data frame: evaluation summary statistics
 #' @slot results.partitions data frame: evaluation k-fold statistics
@@ -24,6 +24,54 @@ NULL
 #' @slot bg.grp vector: partition groups for background points
 #' @slot overlap list: matrices of pairwise niche overlap statistics
 #' @slot rmm list: the rangeModelMetadata objects for each model
+#' 
+#' @details The following are brief descriptions of the columns in the results table, which prints
+#' when accessing `e@results` or `results(e)` if `e` is the ENMevaluation object. Those columns
+#' that represent evaluations of validation data (__.val.__) end in either "avg" (average of the
+#' metric across the models trained on withheld data during cross-validation) or "sd" (standard
+#' deviation of the metric across these models).\cr*
+#' fc = feature class\cr*
+#' rm = regularization multiplier\cr*
+#' tune.args = combination of arguments that define the complexity settings used for tuning (i.e., fc and rm for Maxent)\cr*
+#' auc.train = AUC calculated on the full dataset\cr*
+#' cbi.train = Continuous Boyce Index calculated on the full dataset\cr*
+#' auc.val = average/sd AUC calculated on the validation datasets (the data withheld during cross-validation)\cr*
+#' auc.diff = average/sd difference between auc.train and auc.val\cr*
+#' or.mtp = average/sd omission rate with threshold as the minimum suitability value across occurrence records\cr*
+#' or.10p = average/sd omission rate with threshold as the minimum suitability value across occurrence records after removing the lowest 10%\cr*
+#' cbi.val = average/sd Continuous Boyce Index calculated on the validation datasets (the data withheld during cross-validation)\cr*
+#' AICc = AIC corrected for small sample sizes\cr*
+#' delta.AICc = highest AICc value across all models minus this model's AICc value, where lower values mean higher performance and 0 is the highest performing model\cr*
+#' w.AIC = AIC weights, calculated by exp( -0.5 * delta.AIC), where higher values mean higher performance\cr*
+#' ncoef = number of non-zero beta values (model coefficients)
+#' 
+#' @references 
+#' For references on performance metrics, see the following:
+#' 
+#' In general for ENMeval: 
+#' 
+#' Muscarella, R., Galante, P. J., Soley-Guardia, M., Boria, R. A., Kass, J. M., Uriarte, M., & Anderson, R. P. (2014). ENMeval: An R package for conducting spatially independent evaluations and estimating optimal model complexity for Maxent ecological niche models. \emph{Methods in Ecology and Evolution}, \bold{5}: 1198-1205. \doi{10.1111/2041-210X.12261}
+#' 
+#' \emph{AUC}
+#' 
+#' Fielding, A. H., & Bell, J. F. (1997). A review of methods for the assessment of prediction errors in conservation presence/absence models. \emph{Environmental Conservation}, \bold{24}: 38-49. \doi{10.1017/S0376892997000088}
+#' 
+#' Jiménez‐Valverde, A. (2012). Insights into the area under the receiver operating characteristic curve (AUC) as a discrimination measure in species distribution modelling. \emph{Global Ecology and Biogeography}, \bold{21}: 498-507. \doi{10.1111/j.1466-8238.2011.00683.x}
+#' 
+#' \emph{AUC diff}
+#' 
+#' Warren, D. L., Glor, R. E., Turelli, M. & Funk, D. (2008) Environmental niche equivalency versus conservatism: quantitative approaches to niche evolution. \emph{Evolution}, \bold{62}: 2868-2883. \doi{10.1111/j.1558-5646.2008.00482.x}
+#' 
+#' Radosavljevic, A., & Anderson, R. P. (2014). Making better Maxent models of species distributions: complexity, overfitting and evaluation. \emph{Journal of Biogeography}, \bold{41}(4), 629-643. \doi{10.1111/jbi.12227} 
+#' 
+#' \emph{Omission rates}
+#' 
+#' Radosavljevic, A., & Anderson, R. P. (2014). Making better Maxent models of species distributions: complexity, overfitting and evaluation. \emph{Journal of Biogeography}, \bold{41}(4), 629-643. \doi{10.1111/jbi.12227}
+#' 
+#' \emph{Continuous Boyce Index}
+#' 
+#' Hirzel, A. H., Le Lay, G., Helfer, V., Randin, C., & Guisan, A. (2006). Evaluating the ability of habitat suitability models to predict species presences. \emph{Ecological Modelling}, \bold{199}: 142-152. \doi{10.1016/j.ecolmodel.2006.05.017}
+#' 
 #' @rdname ENMevaluation
 #' @export ENMevaluation
 
@@ -95,14 +143,14 @@ setGeneric("eval.models", function(x) standardGeneric("eval.models"))
 #' @rdname eval.models
 setMethod("eval.models", "ENMevaluation", function(x) x@models)
 
-#' @title eval.variable.importance generic for ENMevaluation object
+#' @title eval.variable.importance (variable importance) generic for ENMevaluation object
 #' @param x ENMevaluation object
 #' @rdname eval.variable.importance
 #' @export
 setGeneric("eval.variable.importance", function(x) standardGeneric("eval.variable.importance"))
 
 #' @rdname eval.models
-setMethod("eval.models", "ENMevaluation", function(x) x@models)
+setMethod("eval.variable.importance", "ENMevaluation", function(x) x@variable.importance)
 
 #' @title eval.predictions generic for ENMevaluation object
 #' @param x ENMevaluation object
@@ -269,10 +317,10 @@ setMethod("show",
 #' The available arguments are: occs.z, bg.z, tune.tbl.i, other.settings (where x.z is a data.frame of the envs values at
 #' coordinates of x, and tune.tbl.i is a single set of tuning parameters).
 #' @slot predict function: specifies how to calculate a model prediction for a Raster* or a data frame.
-#' The available arguments are: mod, envs, tune.tbl.i, other.settings.
+#' The available arguments are: mod, envs, other.settings.
 #' @slot ncoefs function: counts the number of non-zero model coefficients.
 #' The available arguments are: mod.
-#' @slot varimp function: generates a data frame of variable importance from the model object (if functionality is available).
+#' @slot variable.importance function: generates a data frame of variable importance from the model object (if functionality is available).
 #' The available arguments are: mod.
 #' @rdname ENMdetails
 #' @export ENMdetails
@@ -285,7 +333,7 @@ ENMdetails <- setClass("ENMdetails",
                                  args = 'function',
                                  predict = 'function',
                                  ncoefs = 'function',
-                                 varimp = 'function'))
+                                 variable.importance = 'function'))
 
 #' @title eval.name generic for ENMdetails object
 #' @param x ENMdetails object
@@ -434,23 +482,23 @@ setMethod("enm.ncoefs<-", "ENMdetails", function(x, value) {
   x
 })
 
-#' @title enm.varimp generic for ENMdetails object
+#' @title enm.variable.importance generic for ENMdetails object
 #' @param x ENMdetails object
 #' @param value input value
-#' @rdname enm.varimp
+#' @rdname enm.variable.importance
 #' @export
-setGeneric("enm.varimp", function(x) standardGeneric("enm.varimp"))
+setGeneric("enm.variable.importance", function(x) standardGeneric("enm.variable.importance"))
 
-#' @rdname enm.varimp
+#' @rdname enm.variable.importance
 #' @export
-setGeneric("enm.varimp<-", function(x, value) standardGeneric("enm.varimp<-"))
+setGeneric("enm.variable.importance<-", function(x, value) standardGeneric("enm.variable.importance<-"))
 
-#' @rdname enm.varimp
-setMethod("enm.varimp", "ENMdetails", function(x) x@varimp)
+#' @rdname enm.variable.importance
+setMethod("enm.variable.importance", "ENMdetails", function(x) x@variable.importance)
 
-#' @rdname enm.varimp
-setMethod("enm.varimp<-", "ENMdetails", function(x, value) {
-  x@varimp <- value
+#' @rdname enm.variable.importance
+setMethod("enm.variable.importance<-", "ENMdetails", function(x, value) {
+  x@variable.importance <- value
   validObject(x)
   x
 })
@@ -474,6 +522,7 @@ setMethod("show",
 #' @slot null.mod.settings data frame: model settings used
 #' @slot null.partition.method character: partition method used
 #' @slot null.partition.settings list: partition settings used (i.e., value of *k* or aggregation factor)
+#' @slot null.doClamp logical: whether to clamp model predictions or not
 #' @slot null.other.settings list: other modeling settings used (i.e., decisions about clamping, AUC diff calculation)
 #' @slot null.no.iter numeric: number of null model iterations
 #' @slot null.results data frame: evaluation summary statistics for null models
@@ -492,6 +541,7 @@ ENMnull <- setClass("ENMnull",
                               null.mod.settings = 'data.frame',
                               null.partition.method = 'character',
                               null.partition.settings = 'list',
+                              null.doClamp = 'logical',
                               null.other.settings = 'list',
                               null.no.iter = 'numeric',
                               null.results = 'data.frame',
@@ -537,6 +587,15 @@ setGeneric("null.partition.settings", function(x) standardGeneric("null.partitio
 
 #' @rdname null.partition.settings
 setMethod("null.partition.settings", "ENMnull", function(x) x@null.partition.settings)
+
+#' @title null.doClamp generic for ENMnull object
+#' @param x ENMnull object
+#' @rdname null.doClamp
+#' @export
+setGeneric("null.doClamp", function(x) standardGeneric("null.doClamp"))
+
+#' @rdname null.doClamp
+setMethod("null.doClamp", "ENMnull", function(x) x@null.doClamp)
 
 #' @title null.other.settings generic for ENMnull object
 #' @param x ENMnull object
@@ -630,8 +689,8 @@ setMethod("show",
             cat(" partition method: ", object@null.partition.method, "\n")
             cat(" partition settings: ", paste(names(object@null.partition.settings), unlist(object@null.partition.settings), sep = " = ", collapse = ", "), "\n")
             clamp.dir.spacing <- "\n         "
-            if(object@null.other.settings$doClamp == FALSE) cat(" clamp: ", object@null.other.settings$doClamp, "\n")
-            if(object@null.other.settings$doClamp == TRUE) cat(" clamp: ", paste(sapply(1:2, function(x) paste0(names(object@null.other.settings$clamp.directions[x]), ": ", paste(object@null.other.settings$clamp.directions[[x]], collapse = ", "))), collapse = clamp.dir.spacing), "\n")
+            if(object@null.doClamp == FALSE) cat(" clamp: ", object@null.doClamp, "\n")
+            if(object@null.doClamp == TRUE) cat(" clamp: ", paste(sapply(1:2, function(x) paste0(names(object@null.other.settings$clamp.directions[x]), ": ", paste(object@null.other.settings$clamp.directions[[x]], collapse = ", "))), collapse = clamp.dir.spacing), "\n")
             cat(" categoricals: ", paste(object@null.other.settings$categoricals, collapse = ", "), "\n")
             cat(" algorithm: ", object@null.algorithm, "\n")
             # cat(" model settings: \n")

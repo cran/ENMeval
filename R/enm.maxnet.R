@@ -43,19 +43,21 @@ maxnet.args <- function(occs.z, bg.z, tune.tbl.i, other.settings) {
   return(out)
 }
 
-maxnet.predict <- function(mod, envs, tune.tbl.i, other.settings) {
+maxnet.predict <- function(mod, envs, other.settings) {
   # function to generate a prediction Raster* when raster data is specified as envs,
   # and a prediction data frame when a data frame is specified as envs
   if(inherits(envs, "BasicRaster") == TRUE) {
     envs.n <- raster::nlayers(envs)
     envs.pts <- raster::getValues(envs) %>% as.data.frame()
     mxnet.p <- predict(mod, envs.pts, type = other.settings$pred.type, 
-                       clamp = FALSE,  other.settings$other.args)
+                       clamp = other.settings$doClamp,  other.settings$other.args)
     envs.pts[as.numeric(row.names(mxnet.p)), "pred"] <- mxnet.p
-    pred <- raster::rasterFromXYZ(cbind(raster::coordinates(envs), envs.pts$pred), res=raster::res(envs), crs = raster::crs(envs)) 
+    pred <- raster::rasterFromXYZ(cbind(raster::coordinates(envs), envs.pts$pred), 
+                                  res=raster::res(envs), crs = raster::crs(envs)) 
   }else{
     # otherwise, envs is data frame, so return data frame of predicted values
-    pred <- predict(mod, envs, type = other.settings$pred.type, na.rm = TRUE, clamp = FALSE, other.settings$other.args) %>% as.numeric()
+    pred <- predict(mod, envs, type = other.settings$pred.type, na.rm = TRUE, 
+                    clamp = other.settings$doClamp, other.settings$other.args) %>% as.numeric()
   }
   return(pred)
 }
@@ -65,7 +67,7 @@ maxnet.ncoefs <- function(mod) {
 }
 
 # no existing method in model object for variable importance
-maxnet.varimp <- function(mod) {
+maxnet.variable.importance <- function(mod) {
   NULL
 }
 
@@ -77,4 +79,4 @@ maxnet.varimp <- function(mod) {
 #' @export
 enm.maxnet <- ENMdetails(name = maxnet.name, fun = maxnet.fun, errors = maxnet.errors,
                          msgs = maxnet.msgs, args = maxnet.args,
-                         predict = maxnet.predict, ncoefs = maxnet.ncoefs, varimp = maxnet.varimp)
+                         predict = maxnet.predict, ncoefs = maxnet.ncoefs, variable.importance = maxnet.variable.importance)

@@ -24,6 +24,7 @@ NULL
 #' @importFrom rlang .data
 #' @export
 ENMevaluation_convert <- function(e, envs) {
+  .data <- NULL
   alg <- ifelse(grepl("Maxent", e@algorithm), "maxent.jar", "maxnet")
   ts <- dplyr::distinct(e@results, fc = .data$features, rm) %>% as.data.frame()
   targs <- apply(ts, 1, function(x) paste(names(x), x, collapse = "_", sep = "."))
@@ -266,6 +267,11 @@ aic.maxent <- function(p.occs, ncoefs, p = NULL) {
   # this avoids considering overly complex models at all
   n.occs <- nrow(p.occs)
   AIC.valid <- ncoefs < n.occs
+  for(i in 1:length(AIC.valid)) {
+    if(AIC.valid[i] == FALSE) {
+      message(paste("Warning: model", names(AIC.valid)[i], "has more non-zero coefficients (ncoef) than occurrence records for training, so AIC cannot be calculated."))
+    }
+  }
   # calculate log likelihood
   LL <- colSums(log(p.occs), na.rm = TRUE)
   AICc <- (2 * ncoefs - 2 * LL) + (2 * (ncoefs) * (ncoefs + 1) / (n.occs - ncoefs - 1))

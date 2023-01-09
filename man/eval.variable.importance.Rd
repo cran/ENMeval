@@ -2,7 +2,7 @@
 % Please edit documentation in R/classes.R
 \name{eval.variable.importance}
 \alias{eval.variable.importance}
-\title{eval.variable.importance generic for ENMevaluation object}
+\title{eval.variable.importance (variable importance) generic for ENMevaluation object}
 \usage{
 eval.variable.importance(x)
 }
@@ -10,5 +10,5 @@ eval.variable.importance(x)
 \item{x}{ENMevaluation object}
 }
 \description{
-eval.variable.importance generic for ENMevaluation object
+eval.variable.importance (variable importance) generic for ENMevaluation object
 }

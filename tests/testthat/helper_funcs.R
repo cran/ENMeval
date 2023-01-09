@@ -20,6 +20,14 @@ test_ENMevaluation <- function(e, alg, parts, tune.args, nparts.occs, nparts.bg,
     expect_true(!is.null(e@bg))
     expect_true(!is.null(e@bg.grp))
     expect_true(!is.null(e@overlap))
+    expect_equal(length(slotNames(e)), 20)
+    expect_equal(slotNames(e),
+                 c("algorithm", "tune.settings", "partition.method",
+                   "partition.settings", "other.settings", "doClamp",
+                   "clamp.directions", "results", "results.partitions",
+                   "models", "variable.importance", "predictions", "taxon.name",
+                   "occs", "occs.testing", "occs.grp", "bg", "bg.grp",
+                   "overlap", "rmm"))
   })  
   
   test_that("Data in ENMevaluation object slots have correct form", {
@@ -106,7 +114,7 @@ test_clamp <- function(e, envs, occs.z, bg.z, categoricals, canExtrapolate = TRU
   enm <- lookup.enm(e@algorithm)
   m <- e@models[[1]]
   
-  clamp.envs.p <- lapply(clamps.envs, function(x) enm@predict(m, x, NULL, list(pred.type = "cloglog")))
+  clamp.envs.p <- lapply(clamps.envs, function(x) enm@predict(m, x, list(doClamp = FALSE, pred.type = "cloglog")))
   
   combs <- expand.grid(x=names(clamp.envs.p), y=names(clamp.envs.p), stringsAsFactors = FALSE) %>% dplyr::filter(x != y)
   
@@ -121,7 +129,7 @@ test_clamp <- function(e, envs, occs.z, bg.z, categoricals, canExtrapolate = TRU
   })
   
   clamps.df <- lapply(clamps.envs, function(x) raster::getValues(x))
-  clamp.df.p <- lapply(clamps.df, function(x) enm@predict(m, x, NULL, list(pred.type = "cloglog")))
+  clamp.df.p <- lapply(clamps.df, function(x) enm@predict(m, x, list(doClamp = FALSE, pred.type = "cloglog")))
   
   test_that("Clamped data frames are different from each other", {
     for(i in 1:nrow(combs)) {
@@ -199,7 +207,7 @@ test_ENMnulls <- function(e, ns, no.iter, alg, parts, mod.settings, nparts.occs,
 #' whether testing happens for the histogram function, the plotting function, or both
 #' (some implementations do not work with one or the other). Argument "bg.sel" controls
 #' whether tests should be done with ref.data as "bg" or not (non-spatial implementations
-#' cannot be plotted with ref.data as )
+#' cannot be plotted with ref.data as bg)
 
 test_evalplot.stats <- function(e) {
   
