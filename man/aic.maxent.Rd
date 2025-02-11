@@ -13,7 +13,7 @@ the occurrence localities based on one or more models}
 
 \item{ncoefs}{numeric: number of non-zero model coefficients}
 
-\item{p}{RasterStack: raw (maxent.jar) or exponential (maxnet) model predictions;
+\item{p}{SpatRaster: raw (maxent.jar) or exponential (maxnet) model predictions;
 if NULL, AICc will be calculated based on the background points, which already
 have predictions that sum to 1 and thus need no correction -- this assumes that
 the background points represent a good sample of the study extent}
@@ -81,5 +81,5 @@ Warren, D. L., & Seifert, S. N. (2011). Ecological niche modeling in Maxent: the
 Warren, D. L., Wright, A. N., Seifert, S. N., and Shaffer, H. B. (2014). Incorporating model complexity and sampling bias into ecological niche models of climate change risks faced by 90 California vertebrate species of concern. \emph{Diversity and Distributions}, \bold{20}: 334-343. \doi{10.1111/ddi.12160}
 }
 \seealso{
-\code{maxent} in the \pkg{dismo} package.
+\code{MaxEnt} for the \pkg{predicts} package.
 }

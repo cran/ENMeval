@@ -38,26 +38,28 @@ maxnet.args <- function(occs.z, bg.z, tune.tbl.i, other.settings) {
   out$regmult <- tune.tbl.i$rm
   # some models fail to converge if this parameter is not set to TRUE
   # usually the case with sparse datasets
-  out$addsamplestobackground <- TRUE
+  if(is.null(other.settings$addsamplestobackground)) {
+    out$addsamplestobackground <- TRUE
+  }else{
+    out$addsamplestobackground <- other.settings$addsamplestobackground
+  }
   out <- c(out, other.settings$other.args)
   return(out)
 }
 
 maxnet.predict <- function(mod, envs, other.settings) {
+  requireNamespace("maxnet", quitely = TRUE)
   # function to generate a prediction Raster* when raster data is specified as envs,
   # and a prediction data frame when a data frame is specified as envs
-  if(inherits(envs, "BasicRaster") == TRUE) {
-    envs.n <- raster::nlayers(envs)
-    envs.pts <- raster::getValues(envs) %>% as.data.frame()
-    mxnet.p <- predict(mod, envs.pts, type = other.settings$pred.type, 
-                       clamp = other.settings$doClamp,  other.settings$other.args)
-    envs.pts[as.numeric(row.names(mxnet.p)), "pred"] <- mxnet.p
-    pred <- raster::rasterFromXYZ(cbind(raster::coordinates(envs), envs.pts$pred), 
-                                  res=raster::res(envs), crs = raster::crs(envs)) 
+  if(inherits(envs, "SpatRaster") == TRUE) {
+    pred <- maxnet.predictRaster(mod, envs, other.settings$pred.type,
+                                 other.settings$doClamp, 
+                                 other.settings$other.args)
   }else{
     # otherwise, envs is data frame, so return data frame of predicted values
     pred <- predict(mod, envs, type = other.settings$pred.type, na.rm = TRUE, 
-                    clamp = other.settings$doClamp, other.settings$other.args) %>% as.numeric()
+                    clamp = other.settings$doClamp, 
+                    other.settings$other.args) |> as.numeric()
   }
   return(pred)
 }

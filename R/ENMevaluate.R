@@ -14,7 +14,7 @@
 #' assigned to presence/background localities (without inputting raster data), this table should also have 
 #' one column for each predictor variable. See Note for important distinctions between running the function
 #' with and without rasters.
-#' @param envs RasterStack: environmental predictor variables. These should be in same geographic projection as occurrence data.
+#' @param envs SpatRaster: environmental predictor variables. These should be in same geographic projection as occurrence data.
 #' @param bg matrix / data frame: background records with two columns for longitude and latitude of 
 #' background (or pseudo-absence) localities, in that order. If NULL, points will be randomly sampled across \code{envs} 
 #' with the number specified by argument \code{n.bg}. If specifying predictor variable values
@@ -23,8 +23,8 @@
 #' with and without rasters.
 #' @param tune.args named list: model settings to be tuned (i.e., for Maxent models:  \code{list(fc = c("L","Q"), rm = 1:3)})
 #' @param partitions character: name of partitioning technique. Currently available options are
-#' the nonspatial partitions "randomkfold" and "jackknife", and the spatial partitions "block",
-#' "checkerboard1", and "checkerboard2", "testing" for partitioning with fully withheld data (see 
+#' the nonspatial partitions "randomkfold" and "jackknife", the spatial partitions "block" and
+#' "checkerboard", "testing" for partitioning with fully withheld data (see 
 #' argument occs.testing), the "user" option (see argument user.grp), and "none" for no partitioning 
 #' (see \code{?partitions} for details).
 #' @param algorithm character: name of the algorithm used to build models. Currently one of "maxnet",
@@ -43,8 +43,12 @@
 #' the range of the training data. If free extrapolation is a study aim, this should be set to FALSE, but
 #' for most applications leaving this at the default of TRUE is advisable to avoid unrealistic predictions. 
 #' When predictor variables are input, they are clamped internally before making model predictions when clamping is on.
-#' When no predictor variables are input and data frames of variable values are used instead (SWD format),
+#' When no predictor variables are input and data frames of coordinates and variable values are used instead (SWD format),
 #' validation data is clamped before making model predictions when clamping is on.
+#' @param raster.preds boolean: if TRUE (default), return model prediction rasters. If this is FALSE,
+#' the predictions slot in the ENMevaluation object will be empty, which is the same as if no raster 
+#' data is input. You can still make model prediction rasters using the model objects in the models slot
+#' with the predict() function.
 #' @param clamp.directions named list: specifies the direction ("left" for minimum, "right" for maximum) 
 #' of clamping for predictor variables -- (e.g., \code{list(left = c("bio1","bio5"), right = c("bio10","bio15"))}).
 #' @param user.enm ENMdetails object: a custom ENMdetails object used to build models. 
@@ -59,8 +63,8 @@
 #' the ENMevaluation object and output metadata (rmm), but not necessary for analysis.
 #' @param n.bg numeric: the number of background (or pseudo-absence) points to randomly sample over the environmental  
 #' raster data (default: 10000) if background records were not already provided.
-#' @param overlap boolean: if TRUE, calculate niche overlap statistics (Warren \emph{et al.} 2008).
-#' @param overlapStat character: niche overlap statistics to be calculated -- 
+#' @param overlap boolean: if TRUE, calculate range overlap statistics (Warren \emph{et al.} 2008).
+#' @param overlapStat character: range overlap statistics to be calculated -- 
 #' "D" (Schoener's D) and or "I" (Hellinger's I) -- see ?calc.niche.overlap for more details.
 #' @param user.val.grps matrix / data frame: user-defined validation record coordinates and predictor variable values. 
 #' This is used internally by \code{ENMnulls()} to force each null model to evaluate with empirical validation data,
@@ -74,11 +78,8 @@
 #' \code{ENMevaluation} object.
 #' @param parallel boolean: if TRUE, run with parallel processing.
 #' @param numCores numeric: number of cores to use for parallel processing. If NULL, all available cores will be used.
-#' @param parallelType character: either "doParallel" or "doSNOW" (default: "doSNOW") .
 #' @param updateProgress boolean: if TRUE, use shiny progress bar. This is only for use in shiny apps.
 #' @param quiet boolean: if TRUE, silence all function messages (but not errors).
-#' @param occ,env,bg.coords,RMvalues,fc,occ.grp,bg.grp,method,bin.output,rasterPreds,clamp,progbar These arguments from previous versions are backward-compatible to avoid unnecessary errors for older scripts, but in a later version
-#' these arguments will be permanently deprecated.
 #' 
 #' @details There are a few methodological details in the implementation of ENMeval >=2.0.0 that are important to mention.
 #' There is also a brief discussion of some points relevant to null models in ?ENMnulls.
@@ -87,9 +88,13 @@
 #' This approach follows Radosavljevic & Anderson (2014).This setting can be changed by assigning 
 #' other.settings$validation.bg to "partition", which will calculate AUC with respect 
 #' to the validation background only. The default value for other.settings$validation.bg is "full".
+#' NOTE: When examining validation AUC and other discrimination metrics, the "full" option will likely 
+#' result in higher performance than for the "partition" option because more and varied background data 
+#' should lead to higher discriminatory power for the model. Users should thus make sure they are correctly
+#' interpreting the evaluation results.
 #' 
 #' 2. The continuous Boyce index (always) and AICc (when no raster is provided) are not calculated using 
-#' the predicted values of the RasterStack delineating the full study extent, but instead using the predicted
+#' the predicted values of the SpatRaster delineating the full study extent, but instead using the predicted
 #' values for the background records. This decision to use the background only for calculating the continuous 
 #' Boyce index was made to simplify the code and improve running time. The decision for AICc was made in order
 #' to allow AICc calculations for datasets that do not include raster data. See ?calc.aicc for more details,
@@ -103,13 +108,18 @@
 #' to the occurrence and background data tables, users may notice some differences in the results. Occurrence records
 #' that share a raster grid cell are automatically removed when raster data is provided, but without raster data
 #' this functionality cannot operate, and thus any such duplicate occurrence records can remain in the training data.
-#' The Java implementation of Maxent (maxent.jar) should automatically remove these records, but the R implementation 
-#' \code{maxnet} does not, and the \code{bioclim()} function from the R package \code{dismo} does not as well. Therefore,  
+#' The Java implementation of Maxent (maxent.jar implemented with \code{MaxEnt()} from the R package \code{predicts}) should automatically remove these records, but the R implementation 
+#' \code{maxnet} does not, and the \code{envelope()} function from the R package \code{predicts} does not as well. Therefore,  
 #' it is up to the user to remove such records before running \code{ENMevaluate()} when raster data are not included.
 #' 
 #' Below are descriptions of the parameters used in the other.settings, partition.settings, and user.eval arguments.
 #' 
 #' For other.settings, the options are:\cr*
+#' path - character: the folder path designating where maxent.jar files should be saved\cr*
+#' removeduplicates - boolean: whether or not to remove grid-cell duplicates for occurrences 
+#' (this controls behavior for maxent.jar and ENMeval)\cr*
+#' addsamplestobackground - boolean: whether or not to add occurrences to the background
+#' when modeling with maxnet -- the default is TRUE.\cr*
 #' abs.auc.diff - boolean: if TRUE, take absolute value of AUCdiff (default: TRUE)\cr*
 #' pred.type - character: specifies which prediction type should be used to generate maxnet or 
 #' maxent.jar prediction rasters (default: "cloglog").\cr*
@@ -119,7 +129,9 @@
 #' (i.e., training occurrences are compared to training background, and validation occurrences 
 #' compared to validation background).\cr*
 #' other.args - named list: any additional model arguments not specified for tuning; this can
-#' include arguments for maxent.jar, which are described in the software's Help file.\cr
+#' include arguments for maxent.jar, which are described in the software's Help file, such as
+#' "jackknife=TRUE" for a variable importance jackknife plot or "responsecurves=TRUE" for response
+#' curve plots -- note the the "path" must be specified (see above).\cr
 #' 
 #' For partition.settings, the current options are:\cr*
 #' orientation - character: one of "lat_lon" (default), "lon_lat", "lat_lat", or "lon_lon" (required for block partition).\cr* 
@@ -131,14 +143,12 @@
 #' and they determine the order and orientations with which the block partitioning function creates the partition groups. 
 #' For example, "lat_lon" will split the occurrence localities first by latitude, then by longitude. For the checkerboard 
 #' partitions, the aggregation factor specifies how much to aggregate the existing cells in the envs raster
-#' to make new spatial partitions. For example, checkerboard1 with an aggregation factor value of 2 will make the grid cells 
-#' 4 times larger and then assign occurrence and background records to partition groups based on which cell they are in. 
-#' The checkerboard2 partition is hierarchical, so cells are first aggregated to define groups like checkerboard1, but a 
-#' second aggregation is then made to separate the resulting 2 bins into 4 bins. For checkerboard2, two different numbers 
-#' can be used to specify the two levels of the hierarchy, or if a single number is inserted, that value will be used 
-#' for both levels.
+#' to make new spatial partitions. For example, 'basic' checkerboard with an aggregation factor value of 2 will make squares  
+#' 4 times larger than the input rasters and assign occurrence and background records to partition groups based on which square they fall in. 
+#' Using two aggregation factors makes the checkerboard partitions hierarchical, where squares are first aggregated to define groups as in the 'basic' checkerboard, but a 
+#' second aggregation is then made to separate the resulting two bins into four bins (see ?partitions for more details).
 #' 
-#' For user.eval, the accessible variables you have access to in order to run your custom function are below. 
+#' For user.eval, the variables you have access to in order to run your custom function are below. 
 #' See the vignette for a worked example.\cr*
 #' enm - ENMdetails object\cr*
 #' occs.train.z - data frame: predictor variable values for training occurrences\cr*
@@ -163,28 +173,31 @@
 #' @return An ENMevaluation object. See ?ENMevaluation for details and description of the columns
 #' in the results table.
 #'
-#' @importFrom magrittr %>%
 #' @importFrom foreach %dopar%
 #' @importFrom grDevices rainbow
 #' @importFrom methods new slot validObject
-#' @importFrom stats pnorm predict quantile runif sd quantile
+#' @importFrom stats pnorm quantile runif sd quantile
 #' @importFrom utils citation combn packageVersion setTxtProgressBar txtProgressBar
-#'
 #'
 #' @examples
 #' \dontrun{
-#' occs <- read.csv(file.path(system.file(package="dismo"), "/ex/bradypus.csv"))[,2:3]
-#' envs <- raster::stack(list.files(path=paste(system.file(package="dismo"), "/ex", sep=""), 
-#'                                  pattern="grd", full.names=TRUE))
-#' occs.z <- cbind(occs, raster::extract(envs, occs))
+#' library(terra)
+#' library(ENMeval)
+#' 
+#' occs <- read.csv(file.path(system.file(package="predicts"), 
+#' "/ex/bradypus.csv"))[,2:3]
+#' envs <- rast(list.files(path=paste(system.file(package="predicts"), 
+#' "/ex", sep=""), pattern="tif$", full.names=TRUE))
+#' occs.z <- cbind(occs, extract(envs, occs, ID = FALSE))
 #' occs.z$biome <- factor(occs.z$biome)
-#' bg <- as.data.frame(dismo::randomPoints(envs, 1000))
+#' bg <- as.data.frame(predicts::backgroundSample(envs, n = 10000))
 #' names(bg) <- names(occs)
-#' bg.z <- cbind(bg, raster::extract(envs, bg))
+#' bg.z <- cbind(bg, extract(envs, bg, ID = FALSE))
 #' bg.z$biome <- factor(bg.z$biome)
 #' 
 #' # set other.settings -- pred.type is only for Maxent models
-#' os <- list(abs.auc.diff = FALSE, pred.type = "cloglog", validation.bg = "partition")
+#' os <- list(abs.auc.diff = FALSE, pred.type = "cloglog", 
+#' validation.bg = "partition")
 #' # set partition.settings -- here's an example for the block method
 #' # see Details for the required settings for other partition methods
 #' ps <- list(orientation = "lat_lat")
@@ -201,40 +214,62 @@
 #' # print the tuning results
 #' eval.results(e.maxnet)
 #' 
+#' # you can plot the marginal response curves of a maxnet object with plot(), 
+#' # and you can also extract the data for plotting to make your own custom plots
+#' mods.maxnet <- eval.models(e.maxnet)
+#' m <- mods.maxnet$fc.LQH_rm.2
+#' plot(m, type = "cloglog")
+#' rcurve_data <- maxnet::response.plot(m, "bio1", type = "cloglog", plot = FALSE)
+#' 
 #' # there is currently no native function to make raster model predictions for
 #' # maxnet models, but ENMeval can be used to make them like this:
 #' # here's an example where we make a prediction based on the L2 model
 #' # (feature class: Linear, regularization multiplier: 2) for our envs data
-#' mods.maxnet <- eval.models(e.maxnet)
-#' pred.L2 <- enm.maxnet@predict(mods.maxnet$fc.L_rm.2, envs, os)
-#' raster::plot(pred.L2)
+#' pred.LQH2 <- maxnet.predictRaster(m, envs)
+#' plot(pred.L2)
 #' 
-#' #' # here's a run with maxent.jar -- note that if the R package rJava cannot 
-#' install or load, or if other issues with Java exist on your computer, 
-#' maxent.jar will not function
-#' e.maxnet <- ENMevaluate(occs, envs, bg, 
+#' # here's a run with maxent.jar -- note that if the R package rJava cannot 
+#' # install or load, or if you have other issues with Java on your computer, 
+#' # maxent.jar will not function
+#' e.maxent.jar <- ENMevaluate(occs, envs, bg, 
 #' tune.args = list(fc = c("L","LQ","LQH","H"), rm = 1:5), 
 #' partitions = "block", other.settings = os, partition.settings = ps,
 #' algorithm = "maxent.jar", categoricals = "biome", overlap = TRUE)
 #' 
+#' # here's a run of maxent.jar with a path specified for saving the html and 
+#' # plot files -- you can also turn on jackknife variable importance or 
+#' # response curves, etc., to have these plots saved there
+#' e.maxent.jar <- ENMevaluate(occs, envs, bg, 
+#' tune.args = list(fc = c("L","LQ","LQH","H"), rm = 1:5), 
+#' partitions = "block", partition.settings = ps,
+#' algorithm = "maxent.jar", categoricals = "biome", overlap = TRUE,
+#' other.settings = list(path = "analyses/mxnt_results", 
+#' other.args = c("jackknife=TRUE", "responsecurves=TRUE")))
+#' 
 #' # print the tuning results
 #' eval.results(e.maxent.jar)
-#' # raster predictions can be made for maxent.jar models with dismo or ENMeval
+#' 
+#' # raster predictions can be made for maxent.jar models with predicts or 
+#' # ENMeval
 #' mods.maxent.jar <- eval.models(e.maxent.jar)
-#' pred.L2 <- dismo::predict(mods.maxent.jar$fc.L_rm.2, envs, args = "outputform=cloglog")
-#' pred.L2 <- enm.maxent.jar@predict(mods.maxent.jar$fc.L_rm.2, envs, os)
-#' raster::plot(pred.L2)
+#' pred.L2 <- predict(mods.maxent.jar$fc.L_rm.2, envs, 
+#' args = "outputform=cloglog")
+#' pred.L2 <- maxnet.predictRaster(mods.maxent.jar$fc.L_rm.2, envs, os)
+#' plot(pred.L2)
 #' 
 #' # this will give you the percent contribution (not deterministic) and
 #' # permutation importance (deterministic) values of variable importance for
 #' # Maxent models, and it only works with maxent.jar
 #' eval.variable.importance(e.maxent.jar)
 #' 
-#' # here's a run with BIOCLIM -- note that 1) we need to remove the categorical
-#' # variable here because this algorithm only takes continuous variables, and
-#' # that 2) the way BIOCLIM makes predicted is getting tuned (as opposed to the
-#' way the model is fit like maxnet or maxent.jar), namely, the tails of the 
-#' # distribution that are ignored when predicting (see ?dismo::bioclim)
+#' # here's a run with BIOCLIM. Note that we need to remove the categorical
+#' # variable here because this algorithm only takes continuous variables. We 
+#' # also should point out that the way BIOCLIM is tuned is by comparing 
+#' # performance for different ways to make predictions (as opposed to comparing 
+#' # performance for models fit in different ways like for maxnet or maxent.jar). 
+#' # Namely, BIOCLIM can ignore different tails of the distribution when making 
+#' # predictions, and this is what is tuned in ENMevaluate (see 
+#' # ?predicts::envelope).
 # e.bioclim <- ENMevaluate(occs, envs[[-9]], bg,
 # tune.args = list(tails = c("low", "high", "both")),
 # partitions = "block", other.settings = os, partition.settings = ps,
@@ -242,15 +277,13 @@
 #' 
 #' # print the tuning results
 #' eval.results(e.bioclim)
-#' # make raster predictions with dismo or ENMeval
+#' # make raster predictions with predicts or ENMeval
 #' mods.bioclim <- eval.models(e.bioclim)
 #' # note: the models for low, high, and both are actually all the same, and
 #' # the only difference for tuning is how they are predicted during
 #' # cross-validation
-#' pred.both <- dismo::predict(mods.bioclim$tails.both, envs, tails = "both")
-#' os <- c(os, list(tails = "both"))
-#' pred.both <- enm.bioclim@predict(mods.bioclim$tails.both, envs, os)
-#' raster::plot(pred.both)
+#' pred.both <- predict(mods.bioclim$tails.both, envs, tails = "both")
+#' plot(pred.both)
 #' 
 #' # please see the vignette for more examples of model tuning, 
 #' # partitioning, plotting functions, and null models
@@ -259,44 +292,19 @@
 #' 
 #' @export 
 
-ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitions = NULL, algorithm = NULL, 
+ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, 
+                        partitions = NULL, algorithm = NULL, 
                         partition.settings = NULL, 
-                        other.settings = NULL, 
-                        categoricals = NULL, doClamp = TRUE, clamp.directions = NULL,
-                        user.enm = NULL, user.grp = NULL, occs.testing = NULL, taxon.name = NULL, 
-                        n.bg = 10000, overlap = FALSE, overlapStat = c("D", "I"), 
-                        user.val.grps = NULL, user.eval = NULL, rmm = NULL,
-                        parallel = FALSE, numCores = NULL, parallelType = "doSNOW", updateProgress = FALSE, quiet = FALSE, 
-                        # legacy arguments
-                        occ = NULL, env = NULL, bg.coords = NULL, RMvalues = NULL, fc = NULL, occ.grp = NULL, bg.grp = NULL,
-                        method = NULL, bin.output = NULL, rasterPreds = NULL, clamp = NULL, progbar = NULL) {
+                        other.settings = list(), categoricals = NULL, 
+                        doClamp = TRUE, raster.preds = TRUE,
+                        clamp.directions = NULL, user.enm = NULL, 
+                        user.grp = NULL, occs.testing = NULL, taxon.name = NULL, 
+                        n.bg = 10000, overlap = FALSE, 
+                        overlapStat = c("D", "I"), user.val.grps = NULL, 
+                        user.eval = NULL, rmm = NULL, parallel = FALSE, 
+                        numCores = NULL, updateProgress = FALSE, 
+                        quiet = FALSE) {
   
-  # legacy argument handling so ENMevaluate doesn't break for older code
-  all.legacy <- list(occ, env, bg.coords, RMvalues, fc, occ.grp, bg.grp, method, bin.output, rasterPreds)
-  if(sum(sapply(all.legacy, function(x) !is.null(x))) > 0) {
-    if(quiet != TRUE) message("* Running ENMeval v2.0.4 with legacy arguments. These will be phased out in the next version.")
-  }
-  if(!is.null(occ)) occs <- occ
-  if(!is.null(env)) envs <- env
-  if(!is.null(bg.coords)) bg <- bg.coords
-  if(!is.null(method)) partitions <- method
-  if(!is.null(clamp)) doClamp <- clamp
-  if(!is.null(rasterPreds)) {
-    stop('The argument "rasterPreds" was deprecated. Please leave this argument at its default NULL. If you want to avoid generating model prediction rasters, include predictor variable values in the occurrence and background data frames (SWD format). See Details in ?ENMevaluate for more information.')
-  }
-  if(!is.null(RMvalues)) tune.args$rm <- RMvalues
-  if(!is.null(fc)) tune.args$fc <- fc
-  if(!is.null(occ.grp) & !is.null(bg.grp)) {
-    user.grp <- list(occs.grp = occ.grp, bg.grp = bg.grp)
-    if(quiet != TRUE) message('Warning: These arguments were deprecated and replaced with the argument "user.grp".')
-  }
-  if((!is.null(occ.grp) & is.null(bg.grp)) | (is.null(occ.grp) & !is.null(bg.grp))) {
-    stop('For user partitions, please input both arguments "occ.grp" and "bg.grp". Warning: These are legacy arguments that were replaced with the argument "user.grp".')
-  }
-  
-  if(is.null(algorithm) & is.null(user.enm)) {
-    stop('* Please select a model name (argument "algorithm") or specify a user model (argument "user.enm").')
-  }
   
   # record start time
   start.time <- proc.time()
@@ -316,30 +324,33 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   # coerce occs and bg to df
   occs <- as.data.frame(occs)
   if(!is.null(bg)) bg <- as.data.frame(bg)
-  # extract species name and coordinates
   
   # fill in these arguments with defaults if they are NULL
-  if(is.null(partition.settings)) partition.settings <- list(orientation = "lat_lon", 
-                                                             aggregation.factor = 2, 
-                                                             kfolds = 5)
-  other.settings <- c(other.settings, list(abs.auc.diff = TRUE, 
-                                                     pred.type = "cloglog", 
-                                                     validation.bg = "full"))
-  # add whether to use ecospat to other.settings to avoid multiple calls to require()
+  if(is.null(partition.settings)) 
+    partition.settings <- list(orientation = "lat_lon", aggregation.factor = 2, 
+                               kfolds = 5)
+  # add these defaults to other.settings if not entered by user
+  if(is.null(other.settings$removeduplicates)) other.settings$removeduplicates = TRUE
+  if(is.null(other.settings$abs.auc.diff)) other.settings$abs.auc.diff <- TRUE
+  if(is.null(other.settings$pred.type)) other.settings$pred.type <- "cloglog"
+  if(is.null(other.settings$validation.bg)) other.settings$validation.bg <- "full"
+  # add whether to use ecospat to other.settings to avoid multiple requires
   other.settings <- c(other.settings, ecospat.use = ecospat.use)
   
   # make sure taxon name column is not included
-  if(inherits(occs[,1], "character") | inherits(bg[,1], "character")) stop("* If first column of input occurrence or background data is the taxon name, remove it and instead include the 'taxon.name' argument. The first two columns must be the longitude and latitude of the occurrence/background localities.")
+  if(inherits(occs[,1], "character") | inherits(bg[,1], "character")) 
+    stop("* If first column of input occurrence or background data is the taxon name, remove it and instead include the 'taxon.name' argument. The first two columns must be the longitude and latitude of the occurrence/background localities.")
   
   if(is.null(taxon.name)) {
     if(quiet != TRUE) message(paste0("*** Running initial checks... ***\n"))
   }else{
-    if(quiet != TRUE) message(paste0("*** Running initial checks for ", taxon.name, " ... ***\n"))
+    if(quiet != TRUE) message(paste0("*** Running initial checks for ", 
+                                     taxon.name, " ... ***\n"))
   }
   
   ## general argument checks
-  all.partitions <- c("jackknife", "randomkfold", "block", "checkerboard1", 
-                      "checkerboard2", "user", "testing", "none")
+  all.partitions <- c("jackknife", "randomkfold", "block", "checkerboard", 
+                      "user", "testing", "none")
   
   if(!(partitions %in% all.partitions)) {
     stop("Please enter an accepted partition method.")
@@ -349,7 +360,8 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
     stop("If doing testing evaluations, please provide testing data (occs.testing).")
   }
   
-  if((partitions == "checkerboard1" | partitions == "checkerboard2") & is.null(envs)) {
+  if((partitions == "checkerboard") & 
+     is.null(envs)) {
     stop('For checkerboard partitioning, predictor variable rasters "envs" are required.')
   }
   
@@ -359,6 +371,20 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
     }else{
       if(partition.settings$kfolds == 0) {
         stop('For random k-fold partitioning, a numeric, non-zero value of "kfolds" is required.')  
+      }
+    }
+  }
+  
+  if(!is.null(envs)) {
+    # environmental raster data checks
+    if(inherits(envs, "SpatRaster") == FALSE) {
+      stop('From this version of ENMeval, the package will only use "terra" raster data types. Please convert from "raster" to "terra" with terra::rast(r), where r is a RasterStack.')
+    }else{
+      if(terra::nlyr(envs) < 2 & algorithm %in% c("maxent.jar", "maxnet")) {
+        stop('Maxent is generally not designed to be run with a single predictor variable. Please rerun with multiple predictors.')
+      }
+      if(terra::nlyr(envs) < 2 & algorithm == "bioclim") {
+        stop('BIOCLIM is not designed to be run with a single predictor variable. Please rerun with multiple predictors.')
       }
     }
   }
@@ -374,7 +400,7 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   }
   
   if(is.null(tune.args) & overlap == TRUE) {
-    if(quiet != TRUE) message('* As no tuning arguments were specified, turning off niche overlap.')
+    if(quiet != TRUE) message('* As no tuning arguments were specified, turning off range overlap.')
     overlap <- FALSE
   }
   
@@ -387,14 +413,17 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
     stop("If specifying clamp directions, please make doClamp = TRUE.")
   }
   
-  # if a vector of tuning arguments is numeric, make sure it is sorted (for results table and plotting)
-  tune.args.num <- which((sapply(tune.args, class) %in% c("numeric", "integer")) & sapply(tune.args, length) > 1)
+  # if a vector of tuning arguments is numeric, make sure it is sorted 
+  # (for results table and plotting)
+  tune.args.num <- which((sapply(tune.args, class) %in% c("numeric", "integer")) 
+                         & sapply(tune.args, length) > 1)
   for(i in tune.args.num) {
     tune.args[[i]] <- sort(tune.args[[i]])
   }
   
   # make sure that validation.bg is only "bg" if the partitions are spatial
-  if(!(partitions %in% c("block","checkerboard1","checkerboard2","user")) & other.settings$validation.bg == "partition") {
+  if(!(partitions %in% c("block","checkerboard","user")) & 
+     other.settings$validation.bg == "partition") {
     stop('If using non-spatial partitions, please set validation.bg to "full". The "partition" option only makes sense when partitions represent different regions of the study extent. See ?ENMevaluate for details.')
   }else if(partitions == "user" & other.settings$validation.bg == "partition") {
     message('* Please make sure that the user-specified partitions are spatial, else validation.bg should be set to "full". The "partition" option only makes sense when partitions represent different regions of the study extent. See ?ENMevaluate for details.')
@@ -408,15 +437,17 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
     enm <- user.enm
   }
   
-  # get unique values of user partition groups to make sure they all remain after occurrence data processing
+  # get unique values of user partition groups to make sure they all remain 
+  # after occurrence data processing
   if(!is.null(user.grp)) {
     user.grp.uniq <- unique(c(user.grp$occs.grp, user.grp$bg.grp))
   }
   
   # algorithm-specific errors
-  enm@errors(occs, envs, bg, tune.args, partitions, algorithm, partition.settings, other.settings, 
-             categoricals, doClamp, clamp.directions)
-
+  enm@errors(occs, envs, bg, tune.args, partitions, algorithm, 
+             partition.settings, other.settings, categoricals, doClamp, 
+             clamp.directions)
+  
   
   ########################################################### #
   # ASSEMBLE COORDINATES AND ENVIRONMENTAL VARIABLE VALUES ####
@@ -424,69 +455,80 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   
   # if environmental rasters are input as predictor variables
   if(!is.null(envs)) {
-    # make sure envs is a RasterStack -- if RasterLayer, maxent.jar crashes
-    envs <- raster::stack(envs)
-    envs.z <- raster::values(envs)
-    envs.naMismatch <- sum(apply(envs.z, 1, function(x) !all(is.na(x)) & !all(!is.na(x))))
-    if(envs.naMismatch > 0) {
-      if(quiet != TRUE) message(paste0("* Found ", envs.naMismatch, " raster cells that were NA for one or more, but not all, predictor variables. Converting these cells to NA for all predictor variables."))
-      envs.names <- names(envs)
-      envs <- raster::stack(raster::calc(envs, fun = function(x) if(sum(is.na(x)) > 0) x * NA else x))
-      names(envs) <- envs.names
-    }
+    # convert all raster grid cells to NA that are NA for any one raster
+    ## MAYBE DONT DO THIS -- CONVERTS CHARACTER CAT VARS TO NUMERIC
+    # envs <- multiRasMatchNAs(envs, quiet)
     # if no background points specified, generate random ones
     if(is.null(bg)) {
-      if(quiet != TRUE) message(paste0("* Randomly sampling ", n.bg, " background points ..."))
-      bg <- as.data.frame(dismo::randomPoints(envs, n = n.bg))
+      if(quiet != TRUE) message(paste0("* Randomly sampling ", n.bg, 
+                                       " background points ..."))
+      bg <- terra::spatSample(envs, size = n.bg, xy = TRUE, na.rm = TRUE,
+                              values = FALSE) |> as.data.frame()
       names(bg) <- names(occs)
     }
     
     # remove cell duplicates
-    occs.cellNo <- raster::extract(envs, occs, cellnumbers = TRUE)
-    occs.dups <- duplicated(occs.cellNo[,1])
-    if(sum(occs.dups) > 0) if(quiet != TRUE) message(paste0("* Removed ", sum(occs.dups), " occurrence localities that shared the same grid cell."))
-    occs <- occs[!occs.dups,]
-    if(!is.null(user.grp)) user.grp$occs.grp <- user.grp$occs.grp[!occs.dups]
+    if(other.settings$removeduplicates == TRUE) {
+      occs.cellNo <- terra::extract(envs, occs, cells = TRUE, ID = FALSE)
+      occs.dups <- duplicated(occs.cellNo[,"cell"])
+      if(sum(occs.dups) > 0) if(quiet != TRUE) 
+        message(paste0("* Removed ", 
+                       sum(occs.dups), 
+                       " occurrence localities that shared the same grid cell."))
+      occs <- occs[!occs.dups,]
+      if(!is.null(user.grp)) user.grp$occs.grp <- user.grp$occs.grp[!occs.dups]  
+      occs.z <- occs.cellNo[!occs.dups,-which(names(occs.cellNo) == "cell")]
+    }else{
+      occs.z <- terra::extract(envs, occs, ID = FALSE)  
+    }
     
     # bind coordinates to predictor variable values for occs and bg
-    occs.z <- raster::extract(envs, occs)
-    bg.z <- raster::extract(envs, bg)
+    bg.z <- terra::extract(envs, bg, ID = FALSE)
     occs <- cbind(occs, occs.z)
     bg <- cbind(bg, bg.z)
   }else{
     # if no bg included, stop
-    if(is.null(bg)) {
-      stop("* If inputting variable values without rasters, please make sure to input background coordinates with values as well as occurrences.")
-    }
-    # for occ and bg coordinates with environmental predictor values (SWD format)
-    if(quiet != TRUE) message("* Variable values were input along with coordinates and not as raster data, so no raster predictions can be generated and AICc is calculated with background data for Maxent models.")
+    if(is.null(bg)) stop("* If inputting variable values without rasters, please make sure to input background coordinates with values as well as occurrences.")
+    # for occ and bg coordinates with x, y, and environmental predictor values 
+    # (SWD format)
+    if(quiet != TRUE) 
+      message("* Variable values were input along with coordinates and not as raster data, so no raster predictions can be generated and AICc is calculated with background data for Maxent models.")
     # make sure both occ and bg have predictor variable values
     if(ncol(occs) < 3 | ncol(bg) < 3) stop("* If inputting variable values without rasters, please make sure these values are included in the occs and bg tables proceeding the coordinates.")
   }
   
-  # if NA predictor variable values exist for occs or bg, remove these records and modify user.grp accordingly
+  # if NA predictor variable values exist for occs or bg, remove these records 
+  # and modify user.grp accordingly
   occs.z.na <- which(rowSums(is.na(occs)) > 0)
   if(length(occs.z.na) > 0) {
-    if(quiet != TRUE) message(paste0("* Removed ", length(occs.z.na), " occurrence points with NA predictor variable values."))
+    if(quiet != TRUE) 
+      message(paste0("* Removed ", length(occs.z.na), 
+                     " occurrence points with NA predictor variable values."))
     occs <- occs[-occs.z.na,]
-    if(!is.null(user.grp)) user.grp$occs.grp <- user.grp$occs.grp[-occs.z.na]
+    if(!is.null(user.grp)) 
+      user.grp$occs.grp <- user.grp$occs.grp[-occs.z.na]
   }
   
   bg.z.na <- which(rowSums(is.na(bg)) > 0)
   if(length(bg.z.na) > 0) {
-    if(quiet != TRUE) message(paste0("* Removed ", length(bg.z.na), " background points with NA predictor variable values."))
+    if(quiet != TRUE) 
+      message(paste0("* Removed ", length(bg.z.na), 
+                     " background points with NA predictor variable values."))
     bg <- bg[-bg.z.na,]
-    if(!is.null(user.grp)) user.grp$bg.grp <- user.grp$bg.grp[-bg.z.na]
+    if(!is.null(user.grp)) 
+      user.grp$bg.grp <- user.grp$bg.grp[-bg.z.na]
   }
   
   # make main df with coordinates and predictor variable values
   d <- rbind(occs, bg)
   
   # add presence-background identifier for occs and bg
-  d$pb <- c(rep(1, nrow(occs)), rep(0, nrow(bg)))
+  d$pb <- c(rep(1, nrow(occs)), 
+            rep(0, nrow(bg)))
   
-  # if user-defined partitions, assign grp variable before filtering out records with NA predictor variable values
-  # for all other partitioning methods, grp assignments occur after filtering
+  # if user-defined partitions, assign grp variable before filtering out records 
+  # with NA predictor variable values for all other partitioning methods, 
+  # grp assignments occur after filtering
   if(!is.null(user.grp)) {
     d[d$pb == 1, "grp"] <- as.numeric(as.character(user.grp$occs.grp))
     d[d$pb == 0, "grp"] <- as.numeric(as.character(user.grp$bg.grp))
@@ -501,7 +543,7 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   # add testing data to main df if provided
   if(partitions == "testing") {
     if(!is.null(envs)) {
-      occs.testing.z <- as.data.frame(raster::extract(envs, occs.testing))
+      occs.testing.z <- as.data.frame(terra::extract(envs, occs.testing, ID = FALSE))
       occs.testing.z <- cbind(occs.testing, occs.testing.z)
     }else{
       occs.testing.z <- occs.testing
@@ -516,7 +558,7 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   
   # find factor rasters or columns and identify them as categoricals
   if(!is.null(envs)) {
-    categoricals <- unique(c(categoricals, names(envs)[which(raster::is.factor(envs))]))
+    categoricals <- unique(c(categoricals, names(envs)[which(terra::is.factor(envs))]))
   }else{
     categoricals <- unique(c(categoricals, names(occs)[which(sapply(occs, is.factor))]))
   }
@@ -524,11 +566,46 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   
   # if categoricals argument was specified, convert these columns to factor class
   if(!is.null(categoricals)) {
+    
+    # make categorical levels list
+    cat.levs <- list()
     for(i in 1:length(categoricals)) {
-      if(quiet != TRUE) message(paste0("* Assigning variable ", categoricals[i], " to categorical ..."))
+      if(!is.null(envs)) {
+        cat.levs[[i]] <- terra::levels(envs[[categoricals[i]]])[[1]][,2]
+      }else{
+        cat.levs[[i]] <- levels(d[, categoricals[i]])
+      }  
+    }
+    
+    for(i in 1:length(categoricals)) {
+        if(algorithm == "maxent.jar") {
+          if(quiet != TRUE) {
+            message(paste0("* Assigning variable ", categoricals[i], 
+                         " to categorical and changing to integer for maxent.jar..."))
+          }
+          d[, categoricals[i]] <- factor(as.numeric(d[, categoricals[i]]), 
+                                         levels = 1:length(cat.levs[[i]]))
+        }else{
+          if(quiet != TRUE) {
+            message(paste0("* Assigning variable ", categoricals[i], 
+                         " to categorical ..."))
+          }
+        }
       d[, categoricals[i]] <- as.factor(d[, categoricals[i]])
-      if(!is.null(user.val.grps)) user.val.grps[, categoricals[i]] <- factor(user.val.grps[, categoricals[i]], levels = levels(d[, categoricals[i]]))
-      if(!is.null(occs.testing.z)) occs.testing.z[, categoricals[i]] <- factor(occs.testing.z[, categoricals[i]], levels = levels(d[, categoricals[i]]))
+      if(!is.null(user.val.grps)) {
+        if(algorithm == "maxent.jar") {
+          user.val.grps[, categoricals[i]] <- as.numeric(user.val.grps[, categoricals[i]])
+        }
+        user.val.grps[, categoricals[i]] <- factor(user.val.grps[, categoricals[i]], 
+                                                   levels = levels(d[, categoricals[i]]))
+      }
+      if(!is.null(occs.testing.z)) {
+        if(algorithm == "maxent.jar") {
+          occs.testing.z[, categoricals[i]] <- as.numeric(occs.testing.z[, categoricals[i]])
+        }
+        occs.testing.z[, categoricals[i]] <- factor(occs.testing.z[, categoricals[i]], 
+                                                    levels = levels(d[, categoricals[i]]))
+      }
     }
   }
   
@@ -579,16 +656,15 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   ###################### #
   
   # unpack occs and bg records for partitioning
-  d.occs <- d %>% dplyr::filter(pb == 1) %>% dplyr::select(1:2)
-  d.bg <- d %>% dplyr::filter(pb == 0) %>% dplyr::select(1:2)
+  d.occs <- d |> dplyr::filter(pb == 1) |> dplyr::select(1:2)
+  d.bg <- d |> dplyr::filter(pb == 0) |> dplyr::select(1:2)
   
   # partition occs based on selected partition method
   grps <- switch(partitions, 
                  jackknife = get.jackknife(d.occs, d.bg),
                  randomkfold = get.randomkfold(d.occs, d.bg, partition.settings$kfolds),
                  block = get.block(d.occs, d.bg, partition.settings$orientation),
-                 checkerboard1 = get.checkerboard1(d.occs, envs, d.bg, partition.settings$aggregation.factor),
-                 checkerboard2 = get.checkerboard2(d.occs, envs, d.bg, partition.settings$aggregation.factor),
+                 checkerboard = get.checkerboard(d.occs, envs, d.bg, partition.settings$aggregation.factor),
                  user = NULL,
                  testing = list(occs.grp = rep(0, nrow(d.occs)), bg.grp = rep(0, nrow(d.bg))),
                  none = list(occs.grp = rep(0, nrow(d.occs)), bg.grp = rep(0, nrow(d.bg))))
@@ -599,8 +675,7 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
                           jackknife = "* Model evaluations with k-1 jackknife (leave-one-out) cross validation...",
                           randomkfold = paste0("* Model evaluations with random ", partition.settings$kfolds, "-fold cross validation..."),
                           block =  paste0("* Model evaluations with spatial block (4-fold) cross validation and ", partition.settings$orientation, " orientation..."),
-                          checkerboard1 = "* Model evaluations with checkerboard (2-fold) cross validation...",
-                          checkerboard2 = "* Model evaluations with hierarchical checkerboard (4-fold) cross validation...",
+                          checkerboard = ifelse(length(partition.settings$aggregation.factor) == 1, "* Model evaluations with basic checkerboard (2-fold) cross validation...","* Model evaluations with hierarchical checkerboard (4-fold) cross validation..."),
                           user = paste0("* Model evaluations with user-defined ", length(unique(user.grp$occs.grp)), "-fold cross validation..."),
                           testing = "* Model evaluations with testing data...",
                           none = "* Skipping model evaluations (only calculating full model statistics)...")
@@ -625,9 +700,9 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   ################# #
   # print model-specific message
   if(is.null(taxon.name)) {
-    if(quiet != TRUE) message(paste("\n*** Running ENMeval v2.0.4 with", enm@msgs(tune.args, other.settings), "***\n"))
+    if(quiet != TRUE) message(paste("\n*** Running ENMeval v2.0.5 with", enm@msgs(tune.args, other.settings), "***\n"))
   }else{
-    if(quiet != TRUE) message(paste("\n*** Running ENMeval v2.0.4 for", taxon.name, "with", enm@msgs(tune.args, other.settings), "***\n"))
+    if(quiet != TRUE) message(paste("\n*** Running ENMeval v2.0.5 for", taxon.name, "with", enm@msgs(tune.args, other.settings), "***\n"))
   }
   
   ################# #
@@ -635,23 +710,16 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   ################# #
   
   # make table for all tuning parameter combinations
-  tune.tbl <- expand.grid(tune.args, stringsAsFactors = FALSE) %>% tibble::as_tibble()
+  tune.tbl <- expand.grid(tune.args, stringsAsFactors = FALSE) |> tibble::as_tibble()
   # make tune.tbl NULL, not an empty table, if no settings are specified
   # this makes it easier to use tune.i as a parameter in function calls
   # when tune.args does not exist
   if(nrow(tune.tbl) == 0) tune.tbl <- NULL
   
-  if(parallel) {
-    results <- tune.parallel(d, envs, enm, partitions, tune.tbl, doClamp, 
-                             other.settings, partition.settings, user.val.grps, 
-                             occs.testing.z, numCores, parallelType, user.eval, 
-                             algorithm, quiet)  
-  }else{
-    results <- tune.regular(d, envs, enm, partitions, tune.tbl, doClamp, 
-                            other.settings, partition.settings, user.val.grps, 
-                            occs.testing.z, updateProgress, user.eval, 
-                            algorithm, quiet)
-  }
+  results <- tune(d, enm, partitions, tune.tbl, doClamp, other.settings, 
+                  partition.settings, user.val.grps, occs.testing.z, 
+                  numCores, parallel, user.eval, algorithm, 
+                  updateProgress, quiet)  
   
   ##################### #
   # ASSEMBLE RESULTS #### 
@@ -668,7 +736,6 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
     tune.names <- enm@name
   }else{
     # define tuned settings names and bind them to the tune table
-    tune.tbl <- dplyr::mutate_all(tune.tbl, as.factor)
     tune.names <- train.stats.all$tune.args
     tune.tbl$tune.args <- factor(tune.names, levels = tune.names)
   }
@@ -678,11 +745,22 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   
   # gather all model prediction rasters into a stack and name them
   # if envs is null, make an empty stack
-  if(!is.null(envs)) {
-    mod.full.pred.all <- raster::stack(sapply(results, function(x) x$mod.full.pred))
+  if(!is.null(envs) & raster.preds == TRUE) {
+    f <- function(x) enm@predict(x$mod.full, envs, other.settings)
+    # necessary to convert levels of envs categoricals to numbers for maxent.jar
+    # predictions, else error
+    if(!is.null(categoricals)) {
+      for(i in 1:length(categoricals)) {
+        lev.df <- terra::levels(envs[[categoricals[i]]])
+        lev.df[[1]][,2] <- 1:length(cat.levs[[i]])
+        levels(envs[[categoricals[i]]]) <- lev.df[[1]]
+      }  
+    }
+    if(quiet != TRUE) message("Making model prediction rasters...")
+    mod.full.pred.all <- terra::rast(lapply(results, f))
     names(mod.full.pred.all) <- tune.names
   }else{
-    mod.full.pred.all <- raster::stack()
+    mod.full.pred.all <- terra::rast()
   }
   
   # define number of grp (the value of "k") for occurrences
@@ -714,10 +792,10 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
     if(!is.null(tune.tbl)) val.stats.all$tune.args <- factor(val.stats.all$tune.args, levels = tune.names)
     
     # calculate summary statistics
-    cv.stats.sum <- val.stats.all %>% 
-      dplyr::group_by(tune.args) %>%
-      dplyr::select(-fold) %>% 
-      dplyr::summarize_all(sum.list) %>%
+    cv.stats.sum <- val.stats.all |> 
+      dplyr::group_by(tune.args) |>
+      dplyr::select(-fold) |> 
+      dplyr::summarize_all(sum.list) |>
       dplyr::ungroup() 
     
     # change names (replace _ with .)
@@ -730,7 +808,7 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
       # make tune.args column in training stats factor too for smooth join
       train.stats.all$tune.args <- factor(train.stats.all$tune.args, levels = tune.names)
       # eval.stats is the join of tune.tbl, training stats, and cv stats
-      eval.stats <- tune.tbl %>% dplyr::left_join(train.stats.all, by = "tune.args") %>%
+      eval.stats <- tune.tbl |> dplyr::left_join(train.stats.all, by = "tune.args") |>
         dplyr::left_join(cv.stats.sum, by = "tune.args")
     }else{
       # if tune.tbl does not exist, eval.stats is the binding of training stats to cv stats
@@ -744,7 +822,7 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
     # if no partitions assigned, eval.stats is the join of tune.tbl to training stats
     eval.stats <- dplyr::left_join(tune.tbl, train.stats.all, by = "tune.args") 
     if(nrow(val.stats.all) > 0) eval.stats <- dplyr::left_join(eval.stats, val.stats.all, by = "tune.args")
-    if("fold" %in% names(eval.stats)) eval.stats <- eval.stats %>% dplyr::select(-fold)
+    if("fold" %in% names(eval.stats)) eval.stats <- eval.stats |> dplyr::select(-fold)
   }
   
   # calculate number of non-zero parameters in model
@@ -756,11 +834,12 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
     aic.settings <- other.settings
     aic.settings$pred.type <- pred.type.raw
     if(!is.null(envs)) {
-      pred.all.raw <- raster::stack(lapply(mod.full.all, enm@predict, envs, aic.settings))
+      pred.all.raw <- terra::rast(lapply(mod.full.all, enm@predict, envs, aic.settings))
     }else{
       pred.all.raw <- NULL
     }
-    occs.pred.raw <- dplyr::bind_rows(lapply(mod.full.all, enm@predict, occs[,-c(1,2)], aic.settings))
+    # if maxent.jar, convert categorical values to numeric in occs table first
+    occs.pred.raw <- dplyr::bind_rows(lapply(mod.full.all, enm@predict, d[d$pb == 1, 1:(ncol(d)-2)], aic.settings))
     aic <- aic.maxent(occs.pred.raw, ncoefs, pred.all.raw)
     eval.stats <- dplyr::bind_cols(eval.stats, aic)
   }
@@ -772,7 +851,7 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   if(is.null(tune.tbl)) tune.tbl <- data.frame()
   if(is.null(occs.testing.z)) occs.testing.z <- data.frame()
   if(partitions != "block") partition.settings$orientation <- NULL
-  if(partitions != "checkerboard1" | partitions != "checkerboard2") partition.settings$aggregation.factor <- NULL
+  if(partitions != "checkerboard") partition.settings$aggregation.factor <- NULL
   if(partitions != "randomkfold") partition.settings$kfolds <- NULL
   if(is.null(partition.settings) | length(partition.settings) == 0) partition.settings <- list()
   if(is.null(clamp.directions)) clamp.directions <- list()
@@ -799,18 +878,18 @@ ENMevaluate <- function(occs, envs = NULL, bg = NULL, tune.args = NULL, partitio
   # write to existing RMM if input by user
   e@rmm <- buildRMM(e, envs, rmm)
   
-  # if niche overlap selected, calculate and add the resulting matrix to results
+  # if range overlap selected, calculate and add the resulting matrix to results
   if(overlap == TRUE) {
-    nr <- raster::nlayers(e@predictions)
+    nr <- terra::nlyr(e@predictions)
     if(nr == 0) {
-      if(quiet != TRUE) message("Warning: calculate niche overlap without model prediction rasters.")
+      if(quiet != TRUE) message("Warning: calculate range overlap without model prediction rasters.")
     }else if(nr == 1) {
-      if(quiet != TRUE) message("Warning: only 1 model prediction raster found. Need at least 2 rasters to calculate niche overlap. Increase number of tuning arguments and run again.") 
+      if(quiet != TRUE) message("Warning: only 1 model prediction raster found. Need at least 2 rasters to calculate range overlap. Increase number of tuning arguments and run again.") 
     }else{
       for(ovStat in overlapStat) {
-        if(quiet != TRUE) message(paste0("Calculating niche overlap for statistic ", ovStat, "..."))
-        # turn negative values to 0 for niche overlap calculations
-        predictions.noNegs <- raster::calc(e@predictions, function(x) {x[x<0] <- 0; x})
+        if(quiet != TRUE) message(paste0("Calculating range overlap for statistic ", ovStat, "..."))
+        # turn negative values to 0 for range overlap calculations
+        predictions.noNegs <- terra::rast(lapply(e@predictions, function(x) {x[x<0] <- 0; x}))
         overlap.mat <- calc.niche.overlap(predictions.noNegs, ovStat, quiet)
         e@overlap[[ovStat]] <- overlap.mat
       }

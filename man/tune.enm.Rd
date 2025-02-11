@@ -7,6 +7,7 @@
 \alias{cv.enm}
 \alias{tune.train}
 \alias{tune.validate}
+\alias{tune}
 \title{Iterate tuning of ENMs}
 \usage{
 tune.train(
@@ -14,7 +15,6 @@ tune.train(
   occs.z,
   bg.z,
   mod.full,
-  envs,
   tune.tbl.i,
   other.settings,
   partitions,
@@ -36,9 +36,8 @@ tune.validate(
   quiet
 )
 
-tune.parallel(
+tune(
   d,
-  envs,
   enm,
   partitions,
   tune.tbl,
@@ -48,32 +47,15 @@ tune.parallel(
   user.val.grps,
   occs.testing.z,
   numCores,
-  parallelType,
+  parallel,
   user.eval,
   algorithm,
-  quiet
-)
-
-tune.regular(
-  d,
-  envs,
-  enm,
-  partitions,
-  tune.tbl,
-  doClamp,
-  other.settings,
-  partition.settings,
-  user.val.grps,
-  occs.testing.z,
   updateProgress,
-  user.eval,
-  algorithm,
   quiet
 )
 
 cv.enm(
   d,
-  envs,
   enm,
   partitions,
   tune.tbl.i,
@@ -95,8 +77,6 @@ cv.enm(
 \item{bg.z}{data.frame: the envs values for the coordinates at the full dataset background records}
 
 \item{mod.full}{model object: the model trained on the full dataset}
-
-\item{envs}{RasterStack: environmental predictor variables. These should be in same geographic projection as occurrence data.}
 
 \item{tune.tbl.i}{vector: single set of tuning parameters}
 
@@ -135,7 +115,7 @@ bounds of the predictor variables. Clamping avoids extreme predictions for envir
 the range of the training data. If free extrapolation is a study aim, this should be set to FALSE, but
 for most applications leaving this at the default of TRUE is advisable to avoid unrealistic predictions. 
 When predictor variables are input, they are clamped internally before making model predictions when clamping is on.
-When no predictor variables are input and data frames of variable values are used instead (SWD format),
+When no predictor variables are input and data frames of coordinates and variable values are used instead (SWD format),
 validation data is clamped before making model predictions when clamping is on.}
 
 \item{partition.settings}{named list: used to specify certain settings for partitioning schema.
@@ -150,7 +130,7 @@ coordinates at the testing occurrence records}
 
 \item{numCores}{numeric: number of cores to use for parallel processing. If NULL, all available cores will be used.}
 
-\item{parallelType}{character: either "doParallel" or "doSNOW" (default: "doSNOW") .}
+\item{parallel}{boolean: if TRUE, run with parallel processing.}
 
 \item{algorithm}{character: name of the algorithm used to build models. Currently one of "maxnet",
 "maxent.jar", or "bioclim", else the name from a custom ENMdetails implementation.}

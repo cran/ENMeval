@@ -4,7 +4,7 @@
 
 maxent.jar.name <- "maxent.jar"
 
-maxent.jar.fun <- dismo::maxent
+maxent.jar.fun <- predicts::MaxEnt
 
 maxent.jar.errors <- function(occs, envs, bg, tune.args, partitions, algorithm, 
                           partition.settings, other.settings, 
@@ -20,22 +20,23 @@ maxent.jar.errors <- function(occs, envs, bg, tune.args, partitions, algorithm,
       stop("Please input accepted values for 'fc' settings for Maxent.")
     }
   }
-  if(is.null(getOption('dismo_rJavaLoaded'))) {
-    # to avoid trouble on macs
-    Sys.setenv(NOAWT=TRUE)
-    if ( requireNamespace('rJava') ) {
-      rJava::.jpackage('dismo')
-      options(dismo_rJavaLoaded=TRUE)
-    } else {
-      stop('rJava cannot be loaded.')
-    }
-  }
+  # if(is.null(getOption('dismo_rJavaLoaded'))) {
+  #   # to avoid trouble on macs
+  #   Sys.setenv(NOAWT=TRUE)
+  #   if ( requireNamespace('rJava') ) {
+  #     rJava::.jpackage('predicts')
+  #     options(dismo_rJavaLoaded=TRUE)
+  #   } else {
+  #     stop('rJava cannot be loaded.')
+  #   }
+  # }
 }
 
 maxent.jar.msgs <- function(tune.args, other.settings) {
+  rJava::.jpackage("predicts")
   mxe <- rJava::.jnew("meversion") 
   v <- try(rJava::.jcall(mxe, "S", "meversion"))
-  msg <- paste0("maxent.jar v", v, " from dismo package v", packageVersion('dismo'))
+  msg <- paste0("maxent.jar v", v, " using the predicts package v", packageVersion('predicts'))
   return(msg)
 }
 
@@ -43,21 +44,22 @@ maxent.jar.args <- function(occs.z, bg.z, tune.tbl.i, other.settings) {
   out <- list()
   out$x <- rbind(occs.z, bg.z)
   out$p <- c(rep(1, nrow(occs.z)), rep(0, nrow(bg.z)))
-  out$args <- c("noremoveDuplicates", "noautofeature")
+  out$args <- c("noremoveDuplicates", "noautofeature", other.settings$other.args)
   if(!grepl("L", tune.tbl.i$fc)) out$args <- c(out$args, "nolinear")
   if(!grepl("Q", tune.tbl.i$fc)) out$args <- c(out$args, "noquadratic")
   if(!grepl("H", tune.tbl.i$fc)) out$args <- c(out$args, "nohinge")
   if(!grepl("P", tune.tbl.i$fc)) out$args <- c(out$args, "noproduct")
   if(!grepl("T", tune.tbl.i$fc)) out$args <- c(out$args, "nothreshold") else out$args <- c(out$args, "threshold")
   out$args <- c(out$args, paste0("betamultiplier=", tune.tbl.i$rm, sep=""))
-  out <- c(out, other.settings$other.args)
+  out$path <- other.settings$path
   return(out)
 }
 
+#' @importFrom predicts predict
 maxent.jar.predict <- function(mod, envs, other.settings) {
   output.format <- paste0("outputformat=", other.settings$pred.type)
   model.clamp <- ifelse(other.settings$doClamp == TRUE, "doclamp=true", "doclamp=false")
-  pred <- dismo::predict(mod, envs, args = c(output.format, model.clamp), na.rm = TRUE)
+  pred <- predicts::predict(mod, envs, args = c(output.format, model.clamp))
   return(pred)
 }
 

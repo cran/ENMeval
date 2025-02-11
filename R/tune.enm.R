@@ -30,14 +30,14 @@
 NULL
 
 #' @rdname tune.enm
-tune.train <- function(enm, occs.z, bg.z, mod.full, envs, tune.tbl.i, other.settings, partitions, quiet) {
+tune.train <- function(enm, occs.z, bg.z, mod.full, tune.tbl.i, other.settings, partitions, quiet) {
   # get model predictions for training data
   occs.pred <- enm@predict(mod.full, occs.z, other.settings)
   bg.pred <- enm@predict(mod.full, bg.z, other.settings)
   
   # training AUC
-  e <- dismo::evaluate(occs.pred, bg.pred)
-  auc.train <- e@auc
+  e <- predicts::pa_evaluate(occs.pred, bg.pred)
+  auc.train <- e@stats$auc
   
   # calculate training CBI with background, not raster -- this is in order
   # to calculate CBI in a standardized way across training and validation data for 
@@ -57,7 +57,9 @@ tune.train <- function(enm, occs.z, bg.z, mod.full, envs, tune.tbl.i, other.sett
 }
 
 #' @rdname tune.enm
-tune.validate <- function(enm, occs.train.z, occs.val.z, bg.train.z, bg.val.z, mod.k, nk, tune.tbl.i, other.settings, partitions, user.eval, quiet) {
+tune.validate <- function(enm, occs.train.z, occs.val.z, bg.train.z, bg.val.z, 
+                          mod.k, nk, tune.tbl.i, other.settings, partitions, 
+                          user.eval, quiet) {
   # get model predictions for training and validation data for partition k
   occs.train.pred <- enm@predict(mod.k, occs.train.z, other.settings)
   occs.val.pred <- enm@predict(mod.k, occs.val.z, other.settings)
@@ -74,10 +76,10 @@ tune.validate <- function(enm, occs.train.z, occs.val.z, bg.train.z, bg.val.z, m
   # (training + validation background for all statistics) 
   # see Radosavljevic & Anderson 2014 for an example of calculating validation AUC with spatial partitions over a shared background
   if(other.settings$validation.bg == "full") {
-    e.train <- dismo::evaluate(occs.train.pred, c(bg.train.pred, bg.val.pred))
-    auc.train <- e.train@auc
-    e.val <- dismo::evaluate(occs.val.pred, c(bg.train.pred, bg.val.pred))
-    auc.val <- e.val@auc
+    e.train <- predicts::pa_evaluate(occs.train.pred, c(bg.train.pred, bg.val.pred))
+    auc.train <- e.train@stats$auc
+    e.val <- predicts::pa_evaluate(occs.val.pred, c(bg.train.pred, bg.val.pred))
+    auc.val <- e.val@stats$auc
     # calculate AUC diff as training AUC minus validation AUC with a shared background
     auc.diff <- auc.train - auc.val
     # calculate CBI based on the full background (do not calculate for jackknife partitions)
@@ -93,10 +95,10 @@ tune.validate <- function(enm, occs.train.z, occs.val.z, bg.train.z, bg.val.z, m
     # if validation.bg == "partition", calculate training and validation AUC and CBI based on the partitioned backgrounds only 
     # (training background for training statistics and validation background for validation statistics) 
   }else if(other.settings$validation.bg == "partition") {
-    e.train <- dismo::evaluate(occs.train.pred, bg.train.pred)
-    auc.train <- e.train@auc
-    e.val <- dismo::evaluate(occs.val.pred, bg.val.pred)
-    auc.val <- e.val@auc
+    e.train <- predicts::pa_evaluate(occs.train.pred, bg.train.pred)
+    auc.train <- e.train@stats$auc
+    e.val <- predicts::pa_evaluate(occs.val.pred, bg.val.pred)
+    auc.val <- e.val@stats$auc
     # calculate AUC diff as training AUC minus validation AUC with different backgrounds
     auc.diff <- auc.train - auc.val
     # calculate CBI based on the validation background only (do not calculate for jackknife partitions)
@@ -143,81 +145,73 @@ tune.validate <- function(enm, occs.train.z, occs.val.z, bg.train.z, bg.val.z, m
 }
 
 #' @rdname tune.enm
-tune.parallel <- function(d, envs, enm, partitions, tune.tbl, doClamp, 
-                          other.settings, partition.settings, user.val.grps, 
-                          occs.testing.z, numCores, parallelType, user.eval, 
-                          algorithm, quiet) {
-  # set up parallel processing functionality
-  allCores <- parallel::detectCores()
-  if (is.null(numCores)) {
-    numCores <- allCores
-  }
-  cl <- parallel::makeCluster(numCores, setup_strategy = "sequential")
-  n <- ifelse(!is.null(tune.tbl), nrow(tune.tbl), 1)
-  if(quiet != TRUE) pb <- txtProgressBar(0, n, style = 3)
-  if(quiet != TRUE) progress <- function(n) setTxtProgressBar(pb, n)  
-  
-  if(parallelType == "doParallel") {
-    doParallel::registerDoParallel(cl)
-    opts <- NULL
-  } else if(parallelType == "doSNOW") {
-    doSNOW::registerDoSNOW(cl)
-    if(quiet != TRUE) opts <- list(progress=progress) else opts <- NULL
-  }
-  numCoresUsed <- foreach::getDoParWorkers()
-  if(quiet != TRUE) message(paste0("\nOf ", allCores, " total cores using ", numCoresUsed, "..."))
-  if(quiet != TRUE) message(paste0("Running in parallel using ", parallelType, "..."))
-  
-  results <- foreach::foreach(i = 1:n, .options.snow = opts, .export = "cv.enm") %dopar% {
-    cv.enm(d, envs, enm, partitions, tune.tbl[i,], doClamp, other.settings, 
-           partition.settings, user.val.grps, occs.testing.z, user.eval, 
-           algorithm, quiet)
-  }
-  if(quiet != TRUE) close(pb)
-  parallel::stopCluster(cl)
-  return(results)
-}
-
-#' @rdname tune.enm
-tune.regular <- function(d, envs, enm, partitions, tune.tbl, doClamp, 
-                         other.settings, partition.settings, user.val.grps, 
-                         occs.testing.z, updateProgress, user.eval, algorithm, 
-                         quiet) {
-  results <- list()
-  n <- ifelse(!is.null(tune.tbl), nrow(tune.tbl), 1)
-  
-  # set up the console progress bar
-  if(quiet != TRUE) pb <- txtProgressBar(0, n, style = 3)
-  
-  for(i in 1:n) {
-    # and (optionally) the shiny progress bar (updateProgress)
-    if(n > 1) {
-      if(is.function(updateProgress)) {
-        text <- paste0('Running ', paste(as.character(tune.tbl[i,]), collapse = ""), '...')
-        updateProgress(detail = text)
-      }
-      if(quiet != TRUE) setTxtProgressBar(pb, i)
+tune <- function(d, enm, partitions, tune.tbl, doClamp, other.settings, 
+                 partition.settings, user.val.grps, occs.testing.z, 
+                 numCores, parallel, user.eval, algorithm, 
+                 updateProgress, quiet) {
+  if(parallel == TRUE) {
+    # set up parallel processing functionality
+    allCores <- parallel::detectCores()
+    if (is.null(numCores)) {
+      numCores <- allCores
     }
-    # set the current tune settings
-    tune.tbl.i <- tune.tbl[i,]
-    results[[i]] <- cv.enm(d, envs, enm, partitions, tune.tbl.i, doClamp,
-                           other.settings, partition.settings, user.val.grps, 
-                           occs.testing.z, user.eval, algorithm, quiet)
+    cl <- parallel::makeCluster(numCores, setup_strategy = "sequential")
+    parallel::clusterExport(cl, c("d", "enm", "partitions", "tune.tbl", 
+                                  "doClamp", "other.settings", 
+                                  "partition.settings", "user.val.grps", 
+                                  "occs.testing.z", "user.eval", "algorithm", 
+                                  "quiet", "cv.enm", "tune.train", "clamp.vars", 
+                                  "tune.validate"),
+                                  envir = environment())
+    n <- ifelse(!is.null(tune.tbl), nrow(tune.tbl), 1)
+    
+    if(quiet != TRUE) message(paste0("\nOf ", allCores, " total cores using ", numCores, "..."))
+    if(quiet != TRUE) message(paste0("Running in parallel ..."))
+    
+    par.cv.enm <- function(i) {
+      cv.enm(d, enm, partitions, tune.tbl[i,], doClamp, other.settings, 
+             partition.settings, user.val.grps, occs.testing.z, user.eval, 
+             algorithm, quiet)
+    }
+    
+    results <- parallel::parLapply(cl, 1:n, par.cv.enm)
+  }else{
+    results <- list()
+    n <- ifelse(!is.null(tune.tbl), nrow(tune.tbl), 1)
+    
+    # set up the console progress bar
+    if(quiet != TRUE) pb <- txtProgressBar(0, n, style = 3)
+    
+    for(i in 1:n) {
+      # and (optionally) the shiny progress bar (updateProgress)
+      if(n > 1) {
+        if(is.function(updateProgress)) {
+          text <- paste0('Running ', paste(as.character(tune.tbl[i,]), collapse = ""), '...')
+          updateProgress(detail = text)
+        }
+        if(quiet != TRUE) setTxtProgressBar(pb, i)
+      }
+      # set the current tune settings
+      tune.tbl.i <- tune.tbl[i,]
+      results[[i]] <- cv.enm(d, enm, partitions, tune.tbl.i, doClamp,
+                             other.settings, partition.settings, user.val.grps, 
+                             occs.testing.z, user.eval, algorithm, quiet)
+    }
+    if(quiet != TRUE) close(pb)
   }
-  if(quiet != TRUE) close(pb)
   return(results)
 }
 
 #' @rdname tune.enm
-cv.enm <- function(d, envs, enm, partitions, tune.tbl.i, doClamp, 
-                   other.settings, partition.settings, user.val.grps, 
-                   occs.testing.z, user.eval, algorithm, quiet) {
+cv.enm <- function(d, enm, partitions, tune.tbl.i, doClamp, other.settings, 
+                   partition.settings, user.val.grps, occs.testing.z, 
+                   user.eval, algorithm, quiet) {
   envs.names <- names(d[, 3:(ncol(d)-2)])
   # unpack predictor variable values for occs and bg
-  occs.xy <- d %>% dplyr::filter(pb == 1) %>% dplyr::select(1:2)
-  occs.z <- d %>% dplyr::filter(pb == 1) %>% dplyr::select(dplyr::all_of(envs.names))
-  bg.xy <- d %>% dplyr::filter(pb == 0) %>% dplyr::select(1:2)
-  bg.z <- d %>% dplyr::filter(pb == 0) %>% dplyr::select(dplyr::all_of(envs.names))
+  occs.xy <- d |> dplyr::filter(pb == 1) |> dplyr::select(1:2)
+  occs.z <- d |> dplyr::filter(pb == 1) |> dplyr::select(dplyr::all_of(envs.names))
+  bg.xy <- d |> dplyr::filter(pb == 0) |> dplyr::select(1:2)
+  bg.z <- d |> dplyr::filter(pb == 0) |> dplyr::select(dplyr::all_of(envs.names))
   
   # define number of grp (the value of "k") for occurrences
   nk <- length(unique(d[d$pb == 1, "grp"]))
@@ -230,25 +224,17 @@ cv.enm <- function(d, envs, enm, partitions, tune.tbl.i, doClamp,
   
   if(is.null(mod.full)) stop('Training model is NULL. Consider changing the tuning parameters or inputting more background points.')
   
-  # make full model prediction as raster using raster envs (if raster envs exists) 
-  # or full model prediction table using the occs and bg values (if raster envs does not exist)
-  if(!is.null(envs)) {
-    pred.envs <- envs
-  }else{
-    pred.envs <- d %>% dplyr::select(dplyr::all_of(envs.names))
-  }
-  
   # as bioclim can be tuned with different "tails" settings that affect not the 
   # model but the prediction, these settings need to be moved from tune.tbl.i
   # to other.settings as eval.predict() does not accept tune.args
   if(algorithm == "bioclim") other.settings$tails <- tune.tbl.i$tails
   
-  mod.full.pred <- enm@predict(mod.full, pred.envs, other.settings)
+  mod.full.pred <- enm@predict(mod.full, rbind(occs.z, bg.z), other.settings)
   # get evaluation statistics for training data
-  train <- tune.train(enm, occs.z, bg.z, mod.full, envs, tune.tbl.i, other.settings, partitions, quiet)
+  train <- tune.train(enm, occs.z, bg.z, mod.full, tune.tbl.i, other.settings, partitions, quiet)
   # make training stats table
   tune.args.col <- paste(names(tune.tbl.i), tune.tbl.i, collapse = "_", sep = ".")
-  train.stats.df <- data.frame(tune.args = tune.args.col, stringsAsFactors = FALSE) %>% cbind(train)
+  train.stats.df <- data.frame(tune.args = tune.args.col, stringsAsFactors = FALSE) |> cbind(train)
   
   # if no partitions, return results without cv.stats
   if(partitions == "none") {
@@ -258,14 +244,14 @@ cv.enm <- function(d, envs, enm, partitions, tune.tbl.i, doClamp,
   
   if(partitions == "testing") {
     bg.val.z <- data.frame()
-    occs.testing.zEnvs <- occs.testing.z %>% dplyr::select(dplyr::all_of(envs.names))
+    occs.testing.zEnvs <- occs.testing.z |> dplyr::select(dplyr::all_of(envs.names))
     if(doClamp == TRUE) {
       occs.testing.zEnvs <- clamp.vars(orig.vals = occs.testing.zEnvs, ref.vals = rbind(occs.z, bg.z), 
                                        left = other.settings$clamp.directions$left, right = other.settings$clamp.directions$right, 
                                        categoricals = other.settings$categoricals)
     }
     validate <- tune.validate(enm, occs.z, occs.testing.zEnvs, bg.z, bg.val.z, mod.full, 0, tune.tbl.i, other.settings, partitions, user.eval, quiet)
-    test.stats.df <- data.frame(tune.args = tune.args.col, fold = 0, stringsAsFactors = FALSE) %>% cbind(validate)
+    test.stats.df <- data.frame(tune.args = tune.args.col, fold = 0, stringsAsFactors = FALSE) |> cbind(validate)
     cv.res <- list(mod.full = mod.full, mod.full.pred = mod.full.pred, train.stats = train.stats.df, cv.stats = test.stats.df) 
     return(cv.res)
   }
@@ -275,22 +261,24 @@ cv.enm <- function(d, envs, enm, partitions, tune.tbl.i, doClamp,
   
   for(k in 1:nk) {
     # assign partitions for training and validation occurrence data and for background data
-    occs.train.z <- d %>% dplyr::filter(pb == 1, grp != k) %>% dplyr::select(dplyr::all_of(envs.names))
-    bg.train.z <- d %>% dplyr::filter(pb == 0, grp != k) %>% dplyr::select(dplyr::all_of(envs.names))
+    occs.train.z <- d |> dplyr::filter(pb == 1, grp != k) |> dplyr::select(dplyr::all_of(envs.names))
+    bg.train.z <- d |> dplyr::filter(pb == 0, grp != k) |> dplyr::select(dplyr::all_of(envs.names))
     if(is.null(user.val.grps)) {
-      occs.val.z <- d %>% dplyr::filter(pb == 1, grp == k) %>% dplyr::select(dplyr::all_of(envs.names))
-      bg.val.z <- d %>% dplyr::filter(pb == 0, grp == k) %>% dplyr::select(dplyr::all_of(envs.names))
+      occs.val.z <- d |> dplyr::filter(pb == 1, grp == k) |> dplyr::select(dplyr::all_of(envs.names))
+      bg.val.z <- d |> dplyr::filter(pb == 0, grp == k) |> dplyr::select(dplyr::all_of(envs.names))
     }else{
       # assign partitions for training and validation occurrence data and for background data based on user data
-      occs.val.z <- user.val.grps %>% dplyr::filter(grp == k) %>% dplyr::select(dplyr::all_of(envs.names))
-      bg.val.z <- d %>% dplyr::filter(pb == 0, grp == k) %>% dplyr::select(envs.names)
+      occs.val.z <- user.val.grps |> dplyr::filter(grp == k) |> dplyr::select(dplyr::all_of(envs.names))
+      bg.val.z <- d |> dplyr::filter(pb == 0, grp == k) |> dplyr::select(envs.names)
     }
     
     # if doClamp is on, make sure that the validation data for each validation model is also clamped
     # this means for each partition, making sure no values in validation data are more extreme than those in training data
     if(doClamp == TRUE) {
-      val.z <- clamp.vars(orig.vals = rbind(occs.val.z, bg.val.z), ref.vals = rbind(occs.train.z, bg.train.z), 
-                          left = other.settings$clamp.directions$left, right = other.settings$clamp.directions$right, 
+      val.z <- clamp.vars(orig.vals = rbind(occs.val.z, bg.val.z), 
+                          ref.vals = rbind(occs.train.z, bg.train.z), 
+                          left = other.settings$clamp.directions$left, 
+                          right = other.settings$clamp.directions$right, 
                           categoricals = other.settings$categoricals)
       occs.val.z <- val.z[1:nrow(occs.val.z),]
       if(nrow(bg.val.z) > 0) bg.val.z <- val.z[(nrow(occs.val.z)+1):nrow(bg.val.z),]  
@@ -309,20 +297,29 @@ cv.enm <- function(d, envs, enm, partitions, tune.tbl.i, doClamp,
     
     # if model is NULL for some reason, continue but report to user
     if(is.null(mod.k)) {
-      if(quiet != TRUE) message(paste0("\nThe model for settings ", paste(names(tune.tbl.i), tune.tbl.i, collapse = ", "), " for partition ", 
-                                       k, " failed (resulted in NULL). Consider changing partitions. Cross validation averages will ignore this model."))
-      next
+      if(quiet != TRUE) message(paste0("\nThe results were NULL for model with settings ", 
+                                       paste(names(tune.tbl.i), 
+                                             tune.tbl.i, 
+                                             collapse = ", "), 
+                                       " for partition ", k, 
+                                       ". These settings will have NA results."))
+      validate <- data.frame(auc.val = NA, auc.diff = NA, cbi.val = NA, 
+                             or.mtp = NA, or.10p = NA)
+    }else{
+      validate <- tune.validate(enm, occs.train.z, occs.val.z, bg.train.z, 
+                                bg.val.z, mod.k, nk, tune.tbl.i, other.settings, 
+                                partitions, user.eval, quiet)  
     }
     
-    validate <- tune.validate(enm, occs.train.z, occs.val.z, bg.train.z, bg.val.z, mod.k, nk, tune.tbl.i, other.settings, partitions, user.eval, quiet)
-    
     # put into list as one-row data frame for easy binding
-    cv.stats[[k]] <- data.frame(tune.args = tune.args.col, fold = k, stringsAsFactors = FALSE) %>% cbind(validate)
+    cv.stats[[k]] <- data.frame(tune.args = tune.args.col, fold = k, 
+                                stringsAsFactors = FALSE) |> cbind(validate)
   } 
   
   cv.stats.df <- dplyr::bind_rows(cv.stats)
   
-  cv.res <- list(mod.full = mod.full, mod.full.pred = mod.full.pred, train.stats = train.stats.df, cv.stats = cv.stats.df)
+  cv.res <- list(mod.full = mod.full, mod.full.pred = mod.full.pred, 
+                 train.stats = train.stats.df, cv.stats = cv.stats.df)
   
   return(cv.res)
 }

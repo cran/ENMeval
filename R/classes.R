@@ -15,7 +15,7 @@ NULL
 #' @slot results.partitions data frame: evaluation k-fold statistics
 #' @slot models list: model objects
 #' @slot variable.importance list: variable importance data frames (when available)
-#' @slot predictions RasterStack: model predictions
+#' @slot predictions SpatRaster: model predictions
 #' @slot taxon.name character: the name of the focal taxon (optional)
 #' @slot occs data frame: occurrence coordinates and predictor variable values used for model training
 #' @slot occs.testing data frame: when provided, the coordinates of the fully-withheld testing records
@@ -56,7 +56,7 @@ NULL
 #' 
 #' Fielding, A. H., & Bell, J. F. (1997). A review of methods for the assessment of prediction errors in conservation presence/absence models. \emph{Environmental Conservation}, \bold{24}: 38-49. \doi{10.1017/S0376892997000088}
 #' 
-#' Jiménez‐Valverde, A. (2012). Insights into the area under the receiver operating characteristic curve (AUC) as a discrimination measure in species distribution modelling. \emph{Global Ecology and Biogeography}, \bold{21}: 498-507. \doi{10.1111/j.1466-8238.2011.00683.x}
+#' Jimenez-Valverde, A. (2012). Insights into the area under the receiver operating characteristic curve (AUC) as a discrimination measure in species distribution modelling. \emph{Global Ecology and Biogeography}, \bold{21}: 498-507. \doi{10.1111/j.1466-8238.2011.00683.x}
 #' 
 #' \emph{AUC diff}
 #' 
@@ -88,7 +88,7 @@ ENMevaluation <- setClass("ENMevaluation",
                                     results.partitions = 'data.frame',
                                     models = 'list',
                                     variable.importance = 'list',
-                                    predictions = 'RasterStack',
+                                    predictions = 'ANY',
                                     taxon.name = 'character',
                                     occs = 'data.frame',
                                     occs.testing = 'data.frame',
@@ -297,7 +297,7 @@ setMethod("show",
             tune.spacing <- "\n                 "
             cat(" tune settings: ", paste0(names(tune.args.df), ": ", apply(tune.args.df, 2, function(x) paste(unique(x), collapse = ",")), collapse = tune.spacing), "\n")
             cat(" overlap: ", !is.null(object@overlap), "\n")
-            cat("Refer to ?ENMevaluation for information on slots.", sep = "")
+            cat("Refer to ?ENMevaluation for information on slots.\n", sep = "")
             invisible(NULL)
           })
 
@@ -510,7 +510,7 @@ setMethod("show",
           definition = function(object) {
             cat("An object of class: ", class(object), "\n")
             cat(" Name: ", object@name, "\n")
-            cat("Refer to ?ENMdetails for information on slots, and to the vignette for how to construct a custom object.", sep = "")
+            cat("Refer to ?ENMdetails for information on slots, and to the vignette for how to construct a custom object.\n", sep = "")
             invisible(NULL)
           })
 
@@ -698,7 +698,7 @@ setMethod("show",
             tune.spacing <- "\n                  "
             cat(" model settings: ", paste0(names(tune.args.df), ": ", apply(tune.args.df, 2, function(x) paste(unique(x), collapse = ",")), collapse = tune.spacing), "\n")
             # print(object@null.mod.settings[,-ncol(object@null.mod.settings)], row.names = FALSE)
-            cat("Refer to ?ENMnull for information on slots.", sep = "")
+            cat("Refer to ?ENMnull for information on slots.\n", sep = "")
             invisible(NULL)
           })
 

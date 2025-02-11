@@ -4,7 +4,7 @@
 #' See Merow \emph{et al.} (2019) for more details on the nature of the metadata and the \code{rangeModelMetadata} package.
 #' To improve reproducibility of the study, this metadata object can be used as supplemental information for a manuscript, shared with collaborators, etc.
 #' @param e ENMevaluation object
-#' @param envs RasterStack: environmental predictor variables used in analysis; needed to pull information on the predictor variables
+#' @param envs SpatRaster: environmental predictor variables used in analysis; needed to pull information on the predictor variables
 #' not included in the ENMevaluation object
 #' @param rmm rangeModelMetadata object: if included, fields are appended to this RMM object as opposed to returning a new RMM object
 #' @references Merow, C., Maitner, B. S., Owens, H. L., Kass, J. M., Enquist, B. J., Jetz, W., & Guralnick, R. (2019). Species' range model metadata standards: RMMS. \emph{Global Ecology and Biogeography}, \bold{28}: 1912-1924. \doi{10.1111/geb.12993}
@@ -26,9 +26,9 @@ buildRMM <- function(e, envs, rmm = NULL) {
   # predictor variable metadata ####
   if(!is.null(envs)) {
     rmm$data$environment$variableNames <- names(envs)
-    rmm$data$environment$resolution <- raster::res(envs)[1]
-    rmm$data$environment$extent <- as.character(raster::extent(envs))
-    rmm$data$environment$projection <- as.character(raster::crs(envs)) 
+    rmm$data$environment$resolution <- terra::res(envs)[1]
+    rmm$data$environment$extent <- as.character(terra::ext(envs))
+    rmm$data$environment$projection <- as.character(terra::crs(envs)) 
   }
   
   # settings for tuning
@@ -53,19 +53,19 @@ buildRMM <- function(e, envs, rmm = NULL) {
     rmm$model$partition$notes <- "background points also partitioned"
     rmm$model$partition$occurrenceSubsampling <- "k-fold cross validation"
   }
-  if(e@partition.method == "checkerboard1") {
+  if(e@partition.method == "checkerboard" & length(e@partition.settings$aggregation.factor) == 1) {
     rmm$model$partition$partitionSet <- "binary checkerboard"
     rmm$model$partition$partitionRule <- "two spatial partitions in a checkerboard formation that subdivide geographic space equally but do not ensure a balanced number of occurrence localities across partitions"
     rmm$model$partition$notes <- "background points also partitioned"
     rmm$model$partition$occurrenceSubsampling <- "k-fold cross validation"
   }
-  if(e@partition.method == "checkerboard2") {
+  if(e@partition.method == "checkerboard" & length(e@partition.settings$aggregation.factor) == 2) {
     rmm$model$partition$partitionSet <- "hierarchical checkerboard"
     rmm$model$partition$partitionRule <- "four spatial partitions with two levels of spatial aggregation in a checkerboard formation that subdivide geographic space equally but do not ensure a balanced number of occurrence localities across partitions"
     rmm$model$partition$notes <- "background points also partitioned"
     rmm$model$partition$occurrenceSubsampling <- "k-fold cross validation"
   }
-  if(e@partition.method == "checkerboard1" | e@partition.method == "checkerboard2") {
+  if(e@partition.method == "checkerboard") {
     rmm$model$partition$notes <- paste('aggregation factor =', e@partition.settings$aggregation.factor)
   }
   if(e@partition.method == "testing") {
@@ -92,15 +92,14 @@ buildRMM <- function(e, envs, rmm = NULL) {
     rmm$model$algorithmCitation <- citation("maxnet")
   }
   if(e@algorithm == "boostedRegressionTrees") {
-    rmm$model$algorithms <- paste(e@algorithm, "using gbm", packageVersion('gbm'), "and dismo", packageVersion("dismo"))
-    rmm$model$algorithmCitation <- c(citation("dismo"), citation("gbm"))
+    rmm$model$algorithms <- paste(e@algorithm, "using gbm", packageVersion('gbm'))
+    rmm$model$algorithmCitation <- c(citation("gbm"))
     rmm$model$algorithm$brt$interactionDepth <- unique(e@tune.settings$tree.complexity)
     rmm$model$algorithm$brt$bagFraction <- unique(e@tune.settings$bag.fraction)
     rmm$model$algorithm$brt$learningRate <- unique(e@tune.settings$learning.rate)
     rmm$model$algorithm$brt$distribution <- "binomial"
     rmm$model$algorithm$brt$nTrees <- sapply(e@models, function(x) x$n.trees)
     rmm$model$algorithm$brt$shrinkage <- sapply(e@models, function(x) x$shrinkage)
-    rmm$model$algorithm$brt$notes <- "nTrees estimated with gbm.step() in dismo R package"
   }
   if(e@algorithm == "randomForest") {
     rmm$model$algorithms <- paste(e@algorithm, "using randomForest", packageVersion('randomForest'))
@@ -110,7 +109,7 @@ buildRMM <- function(e, envs, rmm = NULL) {
     rmm$model$algorithm$randomForest$maxnodes <- "default: maximum possible"
   }
   if(e@algorithm == "bioclim") {
-    rmm$model$algorithms <- paste(e@algorithm, "using dismo", packageVersion("dismo"))
+    rmm$model$algorithms <- paste(e@algorithm, "using envelope() function in predicts", packageVersion("predicts"))
     rmm$model$algorithmCitation <- "Booth, T. H., Nix, H. A., Busby, J. R., & Hutchinson, M. F. (2014). BIOCLIM: the first species distribution modelling package, its early applications and relevance to most current MAXENT studies. Diversity and Distributions, 20(1), 1-9."
   }
   if(e@algorithm == "maxnet" | e@algorithm == "maxent.jar") {

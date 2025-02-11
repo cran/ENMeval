@@ -11,8 +11,6 @@ evalplot.envSim.hist(
   occs.grp = NULL,
   bg.grp = NULL,
   ref.data = "occs",
-  sim.type = "mess",
-  categoricals = NULL,
   envs.vars = NULL,
   occs.testing.z = NULL,
   hist.bins = 30,
@@ -33,12 +31,7 @@ the first two columns must be named "longitude" and "latitude"}
 
 \item{bg.grp}{numeric vector: partition groups for background records (optional)}
 
-\item{ref.data}{character: the reference to calculate MESS based on occurrences ("occs") or background ("bg"), with default "occs"}
-
-\item{sim.type}{character: either "mess" for Multivariate Environmental Similarity Surface, "most_diff" for most different variable,
-or "most_sim" for most similar variable; uses similarity function from package rmaxent}
-
-\item{categoricals}{character vector: names of categorical variables in input RasterStack or data frames to be removed from the analysis;
+\item{ref.data}{character: the reference to calculate MESS based on occurrences ("occs") or background ("bg"), with default "occs"
 these must be specified as this function was intended for use with continuous data only; these must be specified when inputting tabular data instead of an ENMevaluation object}
 
 \item{envs.vars}{character vector: names of a predictor variable to plot similarities for; if left NULL, calculations are done
@@ -70,14 +63,35 @@ ENMevaluation object or the argument occs.testing.z. In the resulting plot, part
 refers to the training data, while partition 2 refers to the fully withheld testing group.
 
 Histograms are plotted showing the environmental similarity estimates for each 
-partition group. The similarity between environmental values associated with the 
+partition group in relation to the others. The similarity between environmental values associated with the 
 validation occurrence or background records per partition group and those associated with 
-the remaining data (occurrences and background) are calculated, and the minimum similarity 
-per grid is returned. For option "mess", higher negative values indicate greater 
-environmental difference between the validation occurrences and the study extent, and higher 
-positive values indicate greater similarity. This function uses the `similarity()` function 
-from the package `rmaxent` (https://github.com/johnbaums/rmaxent/) to calculate the 
-similarities. Please see the below reference for details on MESS.
+the remaining data (training occurrences and background) are calculated with the MESS algorithm, and the minimum similarity 
+per grid cell is returned. Higher negative values indicate a greater environmental difference between the validation occurrences and the study extent, and higher 
+positive values indicate greater similarity. This function uses the `mess()` function 
+from the package `predicts`. Please see the below reference for details on MESS.
+}
+\examples{
+\dontrun{
+# first, let's tune some models
+occs <- read.csv(file.path(system.file(package="predicts"), 
+"/ex/bradypus.csv"))[,2:3]
+envs <- rast(list.files(path=paste(system.file(package="predicts"), 
+"/ex", sep=""), pattern="tif$", full.names=TRUE))
+bg <- as.data.frame(predicts::backgroundSample(envs, n = 10000))
+names(bg) <- names(occs)
+ 
+ps <- list(orientation = "lat_lat")
+
+e <- ENMevaluate(occs, envs, bg, 
+               tune.args = list(fc = c("L","LQ","LQH"), rm = 1:5), 
+               partitions = "block", partition.settings = ps, 
+               algorithm = "maxnet", categoricals = "biome", 
+               parallel = TRUE)
+
+# now, plot the environmental similarity of each partition to the others               
+evalplot.envSim.hist(e)
+}
+
 }
 \references{
 Baumgartner J, Wilson P (2021). _rmaxent: Tools for working with Maxent in R_. R package version 0.8.5.9000, <URL: https://github.com/johnbaums/rmaxent>.
