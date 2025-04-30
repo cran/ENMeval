@@ -1,8 +1,8 @@
 Package: ENMeval
 Type: Package
 Title: Automated Tuning and Evaluations of Ecological Niche Models
-Version: 2.0.5
-Date: 2025-02-11
+Version: 2.0.5.1
+Date: 2025-04-28
 Authors@R: c(
   person("Jamie M.","Kass", email = "jamie.m.kass@gmail.com", role = c("aut","cre")), 
   person("Robert","Muscarella", role = "aut"),
@@ -27,7 +27,7 @@ Suggests: rmarkdown, graphics, testthat, knitr, rJava (>= 0.5-0),
         geodata, usdm
 URL: https://jamiemkass.github.io/ENMeval/
 NeedsCompilation: no
-Packaged: 2025-02-10 23:05:52 UTC; kass
+Packaged: 2025-04-28 01:15:57 UTC; kass
 Author: Jamie M. Kass [aut, cre],
   Robert Muscarella [aut],
   Peter J. Galante [aut],
@@ -37,4 +37,4 @@ Author: Jamie M. Kass [aut, cre],
   Mariano Soley-Guardia [aut],
   Robert P. Anderson [aut]
 Repository: CRAN
-Date/Publication: 2025-02-11 13:50:05 UTC
+Date/Publication: 2025-04-30 15:40:02 UTC
